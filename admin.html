@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Casino Roulette</title>
+    <style>
+        /* Same CSS as before */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎰 Admin Dashboard 🎰</h1>
+        <div id="deposit-requests">
+            <h2>Deposit Requests</h2>
+        </div>
+        <div id="withdraw-requests">
+            <h2>Withdraw Requests</h2>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+        import { getDatabase, ref, onValue, update, remove } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAC0zvXE_Zv99c2RvMy3gpH5F4Is0Wm1oE",
+            authDomain: "cacino-roulette.firebaseapp.com",
+            projectId: "cacino-roulette",
+            storageBucket: "cacino-roulette.firebasestorage.app",
+            messagingSenderId: "794938085254",
+            appId: "1:794938085254:web:cd9438d783dc1fad7ae607",
+            measurementId: "G-WZWFMZD6N1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        const depositRequests = document.getElementById('deposit-requests');
+        const withdrawRequests = document.getElementById('withdraw-requests');
+
+        onValue(ref(db, 'depositRequests'), (snapshot) => {
+            depositRequests.innerHTML = '<h2>Deposit Requests</h2>';
+            const data = snapshot.val() || {};
+            Object.entries(data).forEach(([id, req]) => {
+                if (req.status === 'pending') addDepositRequest(id, req);
+            });
+        });
+
+        onValue(ref(db, 'withdrawRequests'), (snapshot) => {
+            withdrawRequests.innerHTML = '<h2>Withdraw Requests</h2>';
+            const data = snapshot.val() || {};
+            Object.entries(data).forEach(([id, req]) => {
+                if (req.status === 'pending') addWithdrawRequest(id, req);
+            });
+        });
+
+        function addDepositRequest(id, data) {
+            const div = document.createElement('div');
+            div.className = 'request';
+            div.innerHTML = `
+                User ID: ${data.userId}<br>
+                Amount: ${data.amount} MMK<br>
+                Transaction ID: ${data.transactionId}<br>
+                <button onclick="approveDeposit('${id}', '${data.userId}', ${data.amount})">✅ လက်ခံ</button>
+                <button onclick="rejectDeposit('${id}', '${data.userId}')">❌ ငြင်းပယ်</button>
+            `;
+            depositRequests.appendChild(div);
+        }
+
+        function addWithdrawRequest(id, data) {
+            const div = document.createElement('div');
+            div.className = 'request';
+            div.innerHTML = `
+                User ID: ${data.userId}<br>
+                Amount: ${data.amount} MMK<br>
+                Method: ${data.method}<br>
+                Phone: ${data.phone}<br>
+                <button onclick="approveWithdraw('${id}', '${data.userId}', ${data.amount})">✅ လက်ခံ</button>
+                <button onclick="rejectWithdraw('${id}', '${data.userId}', ${data.amount})">❌ ငြင်းပယ်</button>
+            `;
+            withdrawRequests.appendChild(div);
+        }
+
+        function approveDeposit(id, userId, amount) {
+            update(ref(db, `depositRequests/${id}`), { status: 'approved' });
+            update(ref(db, `users/${userId}`), { balance: firebase.database.ServerValue.increment(amount) });
+            removeRequest(id, 'deposit');
+        }
+
+        function rejectDeposit(id, userId) {
+            update(ref(db, `depositRequests/${id}`), { status: 'rejected' });
+            removeRequest(id, 'deposit');
+        }
+
+        function approveWithdraw(id, userId, amount) {
+            update(ref(db, `withdrawRequests/${id}`), { status: 'approved' });
+            removeRequest(id, 'withdraw');
+        }
+
+        function rejectWithdraw(id, userId, amount) {
+            update(ref(db, `withdrawRequests/${id}`), { status: 'rejected' });
+            update(ref(db, `users/${userId}`), { balance: firebase.database.ServerValue.increment(amount) });
+            removeRequest(id, 'withdraw');
+        }
+
+        function removeRequest(id, type) {
+            const container = type === 'deposit' ? depositRequests : withdrawRequests;
+            const requests = container.getElementsByClassName('request');
+            for (let req of requests) {
+                if (req.innerHTML.includes(id)) {
+                    req.remove();
+                    break;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
