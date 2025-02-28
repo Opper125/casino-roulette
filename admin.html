@@ -5,115 +5,181 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Casino Roulette</title>
     <style>
-        /* Same CSS as before */
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #1a1a1a;
+            color: #ffd700;
+            margin: 0;
+            padding: 20px;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: rgba(30, 30, 30, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+            text-align: center;
+        }
+        h1 {
+            text-align: center;
+            text-shadow: 0 0 10px #ffd700;
+        }
+        h3 {
+            margin: 10px 0;
+        }
+        .request {
+            padding: 10px;
+            margin: 10px 0;
+            background: #333;
+            border: 1px solid #ffd700;
+            border-radius: 5px;
+            text-align: left;
+        }
+        button {
+            padding: 5px 10px;
+            background: linear-gradient(45deg, #ffd700, #b8860b);
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.1);
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🎰 Admin Dashboard 🎰</h1>
-        <div id="deposit-requests">
-            <h2>Deposit Requests</h2>
-        </div>
-        <div id="withdraw-requests">
-            <h2>Withdraw Requests</h2>
-        </div>
+        <div id="deposit-requests"><h3>Deposit Requests</h3></div>
+        <div id="withdraw-requests"><h3>Withdraw Requests</h3></div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
-        import { getDatabase, ref, onValue, update, remove } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+    <script>
+        const ADMIN_PASSWORD = 'admin123'; // Change in production
+        const GITHUB_TOKEN = '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';
+        const GITHUB_REPO = 'Opper125/casino-roulette';
+        const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/contents`;
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyAC0zvXE_Zv99c2RvMy3gpH5F4Is0Wm1oE",
-            authDomain: "cacino-roulette.firebaseapp.com",
-            projectId: "cacino-roulette",
-            storageBucket: "cacino-roulette.firebasestorage.app",
-            messagingSenderId: "794938085254",
-            appId: "1:794938085254:web:cd9438d783dc1fad7ae607",
-            measurementId: "G-WZWFMZD6N1"
-        };
+        const depositRequestsDiv = document.getElementById('deposit-requests');
+        const withdrawRequestsDiv = document.getElementById('withdraw-requests');
 
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-
-        const depositRequests = document.getElementById('deposit-requests');
-        const withdrawRequests = document.getElementById('withdraw-requests');
-
-        onValue(ref(db, 'depositRequests'), (snapshot) => {
-            depositRequests.innerHTML = '<h2>Deposit Requests</h2>';
-            const data = snapshot.val() || {};
-            Object.entries(data).forEach(([id, req]) => {
-                if (req.status === 'pending') addDepositRequest(id, req);
-            });
-        });
-
-        onValue(ref(db, 'withdrawRequests'), (snapshot) => {
-            withdrawRequests.innerHTML = '<h2>Withdraw Requests</h2>';
-            const data = snapshot.val() || {};
-            Object.entries(data).forEach(([id, req]) => {
-                if (req.status === 'pending') addWithdrawRequest(id, req);
-            });
-        });
-
-        function addDepositRequest(id, data) {
-            const div = document.createElement('div');
-            div.className = 'request';
-            div.innerHTML = `
-                User ID: ${data.userId}<br>
-                Amount: ${data.amount} MMK<br>
-                Transaction ID: ${data.transactionId}<br>
-                <button onclick="approveDeposit('${id}', '${data.userId}', ${data.amount})">✅ လက်ခံ</button>
-                <button onclick="rejectDeposit('${id}', '${data.userId}')">❌ ငြင်းပယ်</button>
-            `;
-            depositRequests.appendChild(div);
-        }
-
-        function addWithdrawRequest(id, data) {
-            const div = document.createElement('div');
-            div.className = 'request';
-            div.innerHTML = `
-                User ID: ${data.userId}<br>
-                Amount: ${data.amount} MMK<br>
-                Method: ${data.method}<br>
-                Phone: ${data.phone}<br>
-                <button onclick="approveWithdraw('${id}', '${data.userId}', ${data.amount})">✅ လက်ခံ</button>
-                <button onclick="rejectWithdraw('${id}', '${data.userId}', ${data.amount})">❌ ငြင်းပယ်</button>
-            `;
-            withdrawRequests.appendChild(div);
-        }
-
-        function approveDeposit(id, userId, amount) {
-            update(ref(db, `depositRequests/${id}`), { status: 'approved' });
-            update(ref(db, `users/${userId}`), { balance: firebase.database.ServerValue.increment(amount) });
-            removeRequest(id, 'deposit');
-        }
-
-        function rejectDeposit(id, userId) {
-            update(ref(db, `depositRequests/${id}`), { status: 'rejected' });
-            removeRequest(id, 'deposit');
-        }
-
-        function approveWithdraw(id, userId, amount) {
-            update(ref(db, `withdrawRequests/${id}`), { status: 'approved' });
-            removeRequest(id, 'withdraw');
-        }
-
-        function rejectWithdraw(id, userId, amount) {
-            update(ref(db, `withdrawRequests/${id}`), { status: 'rejected' });
-            update(ref(db, `users/${userId}`), { balance: firebase.database.ServerValue.increment(amount) });
-            removeRequest(id, 'withdraw');
-        }
-
-        function removeRequest(id, type) {
-            const container = type === 'deposit' ? depositRequests : withdrawRequests;
-            const requests = container.getElementsByClassName('request');
-            for (let req of requests) {
-                if (req.innerHTML.includes(id)) {
-                    req.remove();
-                    break;
+        async function fetchGitHubData(file) {
+            try {
+                const response = await fetch(`${GITHUB_API}/${file}`, {
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    return JSON.parse(atob(data.content));
                 }
+            } catch (e) {
+                console.log('GitHub Fetch Error:', e);
+            }
+            return null;
+        }
+
+        async function updateGitHubData(file, data) {
+            try {
+                const existing = await fetchGitHubData(file);
+                const content = btoa(JSON.stringify(data, null, 2));
+                const response = await fetch(`${GITHUB_API}/${file}`, {
+                    method: existing ? 'PUT' : 'POST',
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: `Update ${file}`,
+                        content,
+                        sha: existing ? existing.sha : undefined
+                    })
+                });
+                return response.ok;
+            } catch (e) {
+                console.log('GitHub Update Error:', e);
+                return false;
             }
         }
+
+        async function loadRequests() {
+            const password = prompt('Admin Password ထည့်ပါ:');
+            if (password !== ADMIN_PASSWORD) {
+                alert('Password မမှန်ပါ!');
+                return;
+            }
+            const requests = await fetchGitHubData('requests.json') || {};
+            depositRequestsDiv.innerHTML = '<h3>Deposit Requests</h3>';
+            withdrawRequestsDiv.innerHTML = '<h3>Withdraw Requests</h3>';
+            Object.entries(requests).forEach(([id, req]) => {
+                if (req.status === 'pending') {
+                    if (req.type === 'deposit') {
+                        const div = document.createElement('div');
+                        div.className = 'request';
+                        div.innerHTML = `
+                            User: ${req.userId}<br>
+                            Amount: ${req.amount} MMK<br>
+                            Transaction ID: ${req.transactionId}<br>
+                            <button onclick="approveRequest('${id}', 'deposit')">✅ လက်ခံ</button>
+                            <button onclick="rejectRequest('${id}', 'deposit')">❌ ငြင်းပယ်</button>
+                        `;
+                        depositRequestsDiv.appendChild(div);
+                    } else if (req.type === 'withdraw') {
+                        const div = document.createElement('div');
+                        div.className = 'request';
+                        div.innerHTML = `
+                            User: ${req.userId}<br>
+                            Amount: ${req.amount} MMK<br>
+                            Method: ${req.method}<br>
+                            Phone: ${req.phone}<br>
+                            <button onclick="approveRequest('${id}', 'withdraw')">✅ လက်ခံ</button>
+                            <button onclick="rejectRequest('${id}', 'withdraw')">❌ ငြင်းပယ်</button>
+                        `;
+                        withdrawRequestsDiv.appendChild(div);
+                    }
+                }
+            });
+        }
+
+        async function approveRequest(id, type) {
+            const requests = await fetchGitHubData('requests.json') || {};
+            if (requests[id]) {
+                requests[id].status = 'approved';
+                const userId = requests[id].userId;
+                const amount = requests[id].amount;
+                const userData = await fetchGitHubData('users.json') || {};
+                if (type === 'deposit') {
+                    userData[userId] = { balance: (userData[userId]?.balance || 0) + amount };
+                }
+                await updateGitHubData('users.json', userData);
+                await updateGitHubData('requests.json', requests);
+                loadRequests();
+            }
+        }
+
+        async function rejectRequest(id, type) {
+            const requests = await fetchGitHubData('requests.json') || {};
+            if (requests[id]) {
+                requests[id].status = 'rejected';
+                const userId = requests[id].userId;
+                const amount = requests[id].amount;
+                const userData = await fetchGitHubData('users.json') || {};
+                if (type === 'withdraw') {
+                    userData[userId] = { balance: (userData[userId]?.balance || 0) + amount };
+                }
+                await updateGitHubData('users.json', userData);
+                await updateGitHubData('requests.json', requests);
+                loadRequests();
+            }
+        }
+
+        // Initialize
+        loadRequests();
     </script>
 </body>
 </html>
