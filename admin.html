@@ -65,7 +65,7 @@
 
     <script>
         const ADMIN_PASSWORD = 'admin123'; // Change in production
-        const GITHUB_TOKEN = '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';
+        const GITHUB_TOKEN = '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';
         const GITHUB_REPO = 'Opper125/casino-roulette';
         const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/contents`;
 
@@ -80,6 +80,8 @@
                 if (response.ok) {
                     const data = await response.json();
                     return JSON.parse(atob(data.content));
+                } else {
+                    console.log(`Failed to fetch ${file}: ${response.status}`);
                 }
             } catch (e) {
                 console.log('GitHub Fetch Error:', e);
@@ -104,11 +106,77 @@
                         sha: existing ? existing.sha : undefined
                     })
                 });
+                if (!response.ok) {
+                    console.log(`Failed to update ${file}: ${response.status}`);
+                }
                 return response.ok;
             } catch (e) {
                 console.log('GitHub Update Error:', e);
                 return false;
             }
+        }
+
+        // Game Server Sync
+        async function syncGameServer() {
+            let gameData = await fetchGitHubData('game.json') || { state: 'betting', timeLeft: 30, bets: {}, onlinePlayers: {} };
+            if (gameData.timeLeft > 0) {
+                gameData.timeLeft--;
+            } else {
+                if (gameData.state === 'betting') {
+                    gameData.state = 'spinning';
+                    gameData.finalAngle = Math.floor(Math.random() * 360);
+                    gameData.timeLeft = 8;
+                    setTimeout(async () => {
+                        gameData.result = checkBallPosition(gameData.finalAngle);
+                        gameData.state = 'result';
+                        gameData.timeLeft = 2;
+                        await updateGitHubData('game.json', gameData);
+                        setTimeout(async () => {
+                            gameData.state = 'betting';
+                            gameData.timeLeft = 30;
+                            gameData.bets = {};
+                            delete gameData.finalAngle;
+                            delete gameData.result;
+                            await updateGitHubData('game.json', gameData);
+                        }, 2000);
+                    }, 8000);
+                }
+            }
+            await updateGitHubData('game.json', gameData);
+        }
+
+        setInterval(syncGameServer, 1000);
+
+        function checkBallPosition(finalAngle) {
+            const anglePerNumber = 360 / 36;
+            const index = Math.floor(finalAngle / anglePerNumber);
+            const number = (index % 36) + 1;
+            const bonuses = generateBonuses();
+            return {
+                number,
+                isRed: index % 2 === 1,
+                isBlack: index % 2 === 0,
+                isOdd: number % 2 === 1,
+                isEven: number % 2 === 0,
+                isLow: number <= 18,
+                isHigh: number > 18,
+                dozen: number <= 12 ? '1st12' : number <= 24 ? '2nd12' : '3rd12',
+                column: index % 3 === 0 ? 'col1' : index % 3 === 1 ? 'col2' : 'col3',
+                bonuses
+            };
+        }
+
+        function generateBonuses() {
+            const bonusCount = Math.floor(Math.random() * 3) + 1;
+            const bonusNumbers = new Set();
+            while (bonusNumbers.size < bonusCount) {
+                bonusNumbers.add(Math.floor(Math.random() * 36) + 1);
+            }
+            const bonuses = {};
+            bonusNumbers.forEach(num => {
+                bonuses[num] = Math.floor(Math.random() * 451) + 50;
+            });
+            return bonuses;
         }
 
         async function loadRequests() {
@@ -117,37 +185,39 @@
                 alert('Password မမှန်ပါ!');
                 return;
             }
-            const requests = await fetchGitHubData('requests.json') || {};
-            depositRequestsDiv.innerHTML = '<h3>Deposit Requests</h3>';
-            withdrawRequestsDiv.innerHTML = '<h3>Withdraw Requests</h3>';
-            Object.entries(requests).forEach(([id, req]) => {
-                if (req.status === 'pending') {
-                    if (req.type === 'deposit') {
-                        const div = document.createElement('div');
-                        div.className = 'request';
-                        div.innerHTML = `
-                            User: ${req.userId}<br>
-                            Amount: ${req.amount} MMK<br>
-                            Transaction ID: ${req.transactionId}<br>
-                            <button onclick="approveRequest('${id}', 'deposit')">✅ လက်ခံ</button>
-                            <button onclick="rejectRequest('${id}', 'deposit')">❌ ငြင်းပယ်</button>
-                        `;
-                        depositRequestsDiv.appendChild(div);
-                    } else if (req.type === 'withdraw') {
-                        const div = document.createElement('div');
-                        div.className = 'request';
-                        div.innerHTML = `
-                            User: ${req.userId}<br>
-                            Amount: ${req.amount} MMK<br>
-                            Method: ${req.method}<br>
-                            Phone: ${req.phone}<br>
-                            <button onclick="approveRequest('${id}', 'withdraw')">✅ လက်ခံ</button>
-                            <button onclick="rejectRequest('${id}', 'withdraw')">❌ ငြင်းပယ်</button>
-                        `;
-                        withdrawRequestsDiv.appendChild(div);
+            setInterval(async () => {
+                const requests = await fetchGitHubData('requests.json') || {};
+                depositRequestsDiv.innerHTML = '<h3>Deposit Requests</h3>';
+                withdrawRequestsDiv.innerHTML = '<h3>Withdraw Requests</h3>';
+                Object.entries(requests).forEach(([id, req]) => {
+                    if (req.status === 'pending') {
+                        if (req.type === 'deposit') {
+                            const div = document.createElement('div');
+                            div.className = 'request';
+                            div.innerHTML = `
+                                User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
+                                Amount: ${req.amount} MMK<br>
+                                Transaction ID: ${req.transactionId}<br>
+                                <button onclick="approveRequest('${id}', 'deposit')">✅ လက်ခံ</button>
+                                <button onclick="rejectRequest('${id}', 'deposit')">❌ ငြင်းပယ်</button>
+                            `;
+                            depositRequestsDiv.appendChild(div);
+                        } else if (req.type === 'withdraw') {
+                            const div = document.createElement('div');
+                            div.className = 'request';
+                            div.innerHTML = `
+                                User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
+                                Amount: ${req.amount} MMK<br>
+                                Method: ${req.method}<br>
+                                Phone: ${req.phone}<br>
+                                <button onclick="approveRequest('${id}', 'withdraw')">✅ လက်ခံ</button>
+                                <button onclick="rejectRequest('${id}', 'withdraw')">❌ ငြင်းပယ်</button>
+                            `;
+                            withdrawRequestsDiv.appendChild(div);
+                        }
                     }
-                }
-            });
+                });
+            }, 1000); // Sync every second
         }
 
         async function approveRequest(id, type) {
@@ -158,11 +228,13 @@
                 const amount = requests[id].amount;
                 const userData = await fetchGitHubData('users.json') || {};
                 if (type === 'deposit') {
-                    userData[userId] = { balance: (userData[userId]?.balance || 0) + amount };
+                    userData[userId].balance = (userData[userId]?.balance || 0) + amount;
                 }
-                await updateGitHubData('users.json', userData);
-                await updateGitHubData('requests.json', requests);
-                loadRequests();
+                const userSuccess = await updateGitHubData('users.json', userData);
+                const requestSuccess = await updateGitHubData('requests.json', requests);
+                if (!userSuccess || !requestSuccess) {
+                    alert('Approval လုပ်မှု မအောင်မြင်ပါ။ ထပ်ကြိုးစားပါ။');
+                }
             }
         }
 
@@ -174,11 +246,13 @@
                 const amount = requests[id].amount;
                 const userData = await fetchGitHubData('users.json') || {};
                 if (type === 'withdraw') {
-                    userData[userId] = { balance: (userData[userId]?.balance || 0) + amount };
+                    userData[userId].balance = (userData[userId]?.balance || 0) + amount;
                 }
-                await updateGitHubData('users.json', userData);
-                await updateGitHubData('requests.json', requests);
-                loadRequests();
+                const userSuccess = await updateGitHubData('users.json', userData);
+                const requestSuccess = await updateGitHubData('requests.json', requests);
+                if (!userSuccess || !requestSuccess) {
+                    alert('Rejection လုပ်မှု မအောင်မြင်ပါ။ ထပ်ကြိုးစားပါ။');
+                }
             }
         }
 
