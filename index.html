@@ -313,10 +313,13 @@
         .modal button {
             margin: 5px;
         }
+        #loginModal {
+            display: flex;
+        }
     </style>
 </head>
 <body>
-    <div class="game-container">
+    <div class="game-container" id="gameContainer" style="display: none;">
         <button class="menu-btn" onclick="toggleGuide()">📜 Menu</button>
         <div class="guide" id="guide">
             🎰 <b>Casino Roulette ကစားနည်း</b> 🎰<br>
@@ -362,6 +365,16 @@
         <div id="result">Chip ရွေးပြီး Bet တင်ပါ! 🎰</div>
     </div>
 
+    <!-- Login Modal -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <h2>🎮 အကောင့်ဖွင့်ရန်</h2>
+            <input type="text" id="phone" placeholder="ဖုန်းနံပတ် (09xxxxxxxxx)">
+            <input type="password" id="pin" placeholder="PIN (6 လုံး)">
+            <button onclick="login()">ဝင်မည်</button>
+        </div>
+    </div>
+
     <!-- Deposit Modal -->
     <div class="modal" id="depositModal">
         <div class="modal-content">
@@ -390,16 +403,16 @@
     </div>
 
     <script>
-        const userId = localStorage.getItem('userId') || `user_${Math.random().toString(36).substr(2, 9)}`;
-        localStorage.setItem('userId', userId);
-
+        let userId = localStorage.getItem('userId');
+        let phone = localStorage.getItem('phone');
+        let pin = localStorage.getItem('pin');
         let balance = parseInt(localStorage.getItem(`${userId}_balance`) || '0');
         let totalBet = 0;
         let currentChip = null;
         let bets = {};
         let timeLeft = 30;
         let gameState = 'betting';
-        let usedTransactionIds = JSON.parse(localStorage.getItem('usedTransactionIds') || '[]');
+        let usedTransactionIds = JSON.parse(localStorage.getItem(`${userId}_usedTransactionIds`) || '[]');
         let onlinePlayers = 0;
 
         const spinBtn = document.getElementById('spinBtn');
@@ -410,9 +423,10 @@
         const betChips = document.getElementById('betChips');
         const timer = document.getElementById('timer');
         const result = document.getElementById('result');
+        const gameContainer = document.getElementById('gameContainer');
 
         // GitHub API Config
-        const GITHUB_TOKEN = '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';
+        const GITHUB_TOKEN = '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';
         const GITHUB_REPO = 'Opper125/casino-roulette';
         const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/contents`;
 
@@ -424,6 +438,8 @@
                 if (response.ok) {
                     const data = await response.json();
                     return JSON.parse(atob(data.content));
+                } else {
+                    console.log(`Failed to fetch ${file}: ${response.status}`);
                 }
             } catch (e) {
                 console.log('GitHub Fetch Error:', e);
@@ -448,6 +464,9 @@
                         sha: existing ? existing.sha : undefined
                     })
                 });
+                if (!response.ok) {
+                    console.log(`Failed to update ${file}: ${response.status}`);
+                }
                 return response.ok;
             } catch (e) {
                 console.log('GitHub Update Error:', e);
@@ -455,62 +474,81 @@
             }
         }
 
+        // Login Function
+        async function login() {
+            const inputPhone = document.getElementById('phone').value;
+            const inputPin = document.getElementById('pin').value;
+            if (!inputPhone || !inputPin || inputPin.length !== 6 || !inputPhone.match(/^09\d{8,9}$/)) {
+                result.innerHTML = "❌ ဖုန်းနံပတ် သို့မဟုတ် PIN မမှန်ပါ!";
+                return;
+            }
+            phone = inputPhone;
+            pin = inputPin;
+            userId = btoa(phone + pin); // Anonymous ID
+            localStorage.setItem('userId', userId);
+            localStorage.setItem('phone', phone);
+            localStorage.setItem('pin', pin);
+            document.getElementById('loginModal').style.display = 'none';
+            gameContainer.style.display = 'flex';
+            await loadInitialData();
+            syncGameState();
+        }
+
         // Load initial data
         async function loadInitialData() {
+            if (!userId) return;
             const userData = await fetchGitHubData('users.json') || {};
             if (userData[userId]) {
                 balance = userData[userId].balance;
+                usedTransactionIds = userData[userId].usedTransactionIds || [];
+                localStorage.setItem(`${userId}_balance`, balance);
+                localStorage.setItem(`${userId}_usedTransactionIds`, JSON.stringify(usedTransactionIds));
+            } else {
+                userData[userId] = { balance: 0, phone: phone, usedTransactionIds: [] };
+                await updateGitHubData('users.json', userData);
             }
             updateBalance();
-            const gameData = await fetchGitHubData('game.json') || {};
-            if (gameData) {
-                bets = gameData.bets || {};
-                onlinePlayers = Object.keys(gameData.onlinePlayers || {}).length;
-                document.getElementById('online-players').innerHTML = `Online Players: ${onlinePlayers}`;
-                updateBetCounts(bets);
-            }
-            await updateGitHubData('game.json', { 
-                ...gameData, 
-                onlinePlayers: { ...gameData.onlinePlayers || {}, [userId]: true } 
-            });
+            const gameData = await fetchGitHubData('game.json') || { bets: {}, state: 'betting', timeLeft: 30, onlinePlayers: {} };
+            bets = gameData.bets || {};
+            gameState = gameData.state || 'betting';
+            timeLeft = gameData.timeLeft || 30;
+            onlinePlayers = Object.keys(gameData.onlinePlayers || {}).length;
+            gameData.onlinePlayers = gameData.onlinePlayers || {};
+            gameData.onlinePlayers[userId] = true;
+            await updateGitHubData('game.json', gameData);
+            document.getElementById('online-players').innerHTML = `Online Players: ${onlinePlayers}`;
+            updateBetCounts(bets);
+            timer.innerHTML = `Time Left: ${timeLeft}s`;
         }
 
-        // Game Loop
-        function gameLoop() {
-            if (timeLeft > 0) {
-                timeLeft--;
+        // Sync Game State
+        async function syncGameState() {
+            setInterval(async () => {
+                const gameData = await fetchGitHubData('game.json') || { bets: {}, state: 'betting', timeLeft: 30, onlinePlayers: {} };
+                gameState = gameData.state;
+                timeLeft = gameData.timeLeft;
+                bets = gameData.bets || {};
+                onlinePlayers = Object.keys(gameData.onlinePlayers || {}).length;
                 timer.innerHTML = `Time Left: ${timeLeft}s`;
-                if (timeLeft <= 5) {
+                document.getElementById('online-players').innerHTML = `Online Players: ${onlinePlayers}`;
+                updateBetCounts(bets);
+                if (gameState === 'betting' && timeLeft > 5) {
+                    betTable.style.display = 'grid';
+                    betChips.style.display = 'flex';
+                    roulette.style.display = 'none';
+                    document.getElementById('total-bet').style.display = 'block';
+                    result.innerHTML = "🎲 Chip ရွေးပြီး Bet တင်ပါ!";
+                } else if (gameState === 'betting' && timeLeft <= 5) {
                     betTable.style.display = 'none';
                     betChips.style.display = 'none';
                     result.innerHTML = "⏳ Betting ပိတ်တော့မည်!";
+                } else if (gameState === 'spinning') {
+                    spinWheel(gameData.finalAngle);
+                } else if (gameState === 'result') {
+                    showResult(gameData.result);
                 }
-            } else {
-                if (gameState === 'betting') {
-                    gameState = 'spinning';
-                    const finalAngle = Math.floor(Math.random() * 360);
-                    spinWheel(finalAngle);
-                    timeLeft = 8;
-                    setTimeout(() => {
-                        const resultData = checkBallPosition(finalAngle);
-                        gameState = 'result';
-                        timeLeft = 2;
-                        showResult(resultData);
-                        setTimeout(() => {
-                            gameState = 'betting';
-                            timeLeft = 30;
-                            betTable.style.display = 'grid';
-                            betChips.style.display = 'flex';
-                            result.innerHTML = "🎲 Chip ရွေးပြီး Bet တင်ပါ!";
-                            updateGitHubData('game.json', { bets: {}, state: gameState, timeLeft, onlinePlayers: { [userId]: true } });
-                        }, 2000);
-                    }, 8000);
-                }
-            }
-            updateGitHubData('game.json', { bets, state: gameState, timeLeft, onlinePlayers: { [userId]: true } });
+            }, 1000);
         }
-
-        setInterval(gameLoop, 1000);
 
         function setupRoulette() {
             const numbers = Array.from({ length: 36 }, (_, i) => i + 1);
@@ -532,7 +570,7 @@
             if (amount !== 0) {
                 balance += amount;
                 localStorage.setItem(`${userId}_balance`, balance);
-                updateGitHubData('users.json', { [userId]: { balance } });
+                updateGitHubData('users.json', { [userId]: { balance, phone, usedTransactionIds } });
             }
             balanceValue.innerHTML = balance;
             document.getElementById('balance').innerHTML = `Balance: <span id="balance-value">${balance}</span> MMK`;
@@ -550,37 +588,61 @@
         async function submitDeposit() {
             const amount = parseInt(document.getElementById('deposit-amount').value);
             const transactionId = document.getElementById('transaction-id').value;
-            if (amount < 100 || transactionId.length !== 6 || usedTransactionIds.includes(transactionId)) {
+            if (!amount || amount < 100 || !transactionId || transactionId.length !== 6 || usedTransactionIds.includes(transactionId)) {
                 result.innerHTML = "❌ ငွေပမာဏ သို့မဟုတ် Transaction ID မမှန်ကန်ပါ!";
                 return;
             }
             usedTransactionIds.push(transactionId);
-            localStorage.setItem('usedTransactionIds', JSON.stringify(usedTransactionIds));
+            localStorage.setItem(`${userId}_usedTransactionIds`, JSON.stringify(usedTransactionIds));
             const requestId = `${userId}_${Date.now()}`;
             const requests = await fetchGitHubData('requests.json') || {};
-            requests[requestId] = { userId, amount, transactionId, type: 'deposit', status: 'pending', timestamp: Date.now() };
-            await updateGitHubData('requests.json', requests);
-            result.innerHTML = "⏳ Deposit တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
-            closeModal('depositModal');
-            checkRequestStatus(requestId, 'deposit');
+            requests[requestId] = { 
+                userId, 
+                amount, 
+                transactionId, 
+                type: 'deposit', 
+                status: 'pending', 
+                timestamp: Date.now() 
+            };
+            const success = await updateGitHubData('requests.json', requests);
+            if (success) {
+                result.innerHTML = "⏳ Deposit တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
+                closeModal('depositModal');
+                checkRequestStatus(requestId, 'deposit');
+            } else {
+                result.innerHTML = "❌ တောင်းဆိုမှု ပို့မပြီးပါ။ ထပ်ကြိုးစားပါ!";
+            }
         }
 
         async function submitWithdraw() {
             const method = document.getElementById('withdraw-method').value;
-            const phone = document.getElementById('withdraw-phone').value;
+            const phoneWithdraw = document.getElementById('withdraw-phone').value;
             const amount = parseInt(document.getElementById('withdraw-amount').value);
-            if (amount < 100 || amount > balance || !phone) {
+            if (!amount || amount < 100 || amount > balance || !phoneWithdraw) {
                 result.innerHTML = "❌ ငွေပမာဏ သို့မဟုတ် ဖုန်းနံပတ် မမှန်ကန်ပါ!";
                 return;
             }
             updateBalance(-amount);
             const requestId = `${userId}_${Date.now()}`;
             const requests = await fetchGitHubData('requests.json') || {};
-            requests[requestId] = { userId, amount, method, phone, type: 'withdraw', status: 'pending', timestamp: Date.now() };
-            await updateGitHubData('requests.json', requests);
-            result.innerHTML = "⏳ Withdraw တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
-            closeModal('withdrawModal');
-            checkRequestStatus(requestId, 'withdraw');
+            requests[requestId] = { 
+                userId, 
+                amount, 
+                method, 
+                phone: phoneWithdraw, 
+                type: 'withdraw', 
+                status: 'pending', 
+                timestamp: Date.now() 
+            };
+            const success = await updateGitHubData('requests.json', requests);
+            if (success) {
+                result.innerHTML = "⏳ Withdraw တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
+                closeModal('withdrawModal');
+                checkRequestStatus(requestId, 'withdraw');
+            } else {
+                result.innerHTML = "❌ တောင်းဆိုမှု ပို့မပြီးပါ။ ထပ်ကြိုးစားပါ!";
+                updateBalance(amount); // Rollback if failed
+            }
         }
 
         async function checkRequestStatus(requestId, type) {
@@ -590,7 +652,8 @@
                     clearInterval(interval);
                     if (requests[requestId].status === 'approved') {
                         if (type === 'deposit') {
-                            balance = (await fetchGitHubData('users.json'))[userId].balance;
+                            const userData = await fetchGitHubData('users.json') || {};
+                            balance = userData[userId]?.balance || balance;
                             updateBalance();
                         }
                         result.innerHTML = `✅ ${type === 'deposit' ? 'Deposit' : 'Withdraw'} အောင်မြင်ပါပြီ!`;
@@ -599,7 +662,7 @@
                         result.innerHTML = `❌ ${type === 'deposit' ? 'Deposit' : 'Withdraw'} ပယ်ချခံရပါတယ်!`;
                     }
                 }
-            }, 2000);
+            }, 1000);
         }
 
         function setupBetTable() {
@@ -711,6 +774,8 @@
             }
             result.innerHTML = message;
             bets = {};
+            totalBet = 0;
+            updateTotalBet();
         }
 
         function checkBallPosition(finalAngle) {
@@ -758,9 +823,15 @@
         }
 
         // Initialize
+        if (userId && phone && pin) {
+            document.getElementById('loginModal').style.display = 'none';
+            gameContainer.style.display = 'flex';
+            loadInitialData().then(syncGameState);
+        } else {
+            result.innerHTML = "🎮 အကောင့်ဖွင့်ရန် ဖုန်းနံပတ်နှင့် PIN ထည့်ပါ!";
+        }
         setupRoulette();
         setupBetTable();
-        loadInitialData();
     </script>
 </body>
-    </html>
+</html>
