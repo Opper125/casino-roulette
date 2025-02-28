@@ -59,6 +59,8 @@
 <body>
     <div class="container">
         <h1>🎰 Admin Dashboard 🎰</h1>
+        <div id="game-status">Game Status: <span id="state">Betting</span> | Time Left: <span id="timeLeft">30s</span></div>
+        <div id="online-players">Online Players: 0</div>
         <div id="deposit-requests"><h3>Deposit Requests</h3></div>
         <div id="withdraw-requests"><h3>Withdraw Requests</h3></div>
     </div>
@@ -71,6 +73,9 @@
 
         const depositRequestsDiv = document.getElementById('deposit-requests');
         const withdrawRequestsDiv = document.getElementById('withdraw-requests');
+        const stateSpan = document.getElementById('state');
+        const timeLeftSpan = document.getElementById('timeLeft');
+        const onlinePlayersDiv = document.getElementById('online-players');
 
         async function fetchGitHubData(file) {
             try {
@@ -116,8 +121,8 @@
             }
         }
 
-        // Game Server Sync
-        async function syncGameServer() {
+        // Game Server Logic
+        async function manageGameServer() {
             let gameData = await fetchGitHubData('game.json') || { state: 'betting', timeLeft: 30, bets: {}, onlinePlayers: {} };
             if (gameData.timeLeft > 0) {
                 gameData.timeLeft--;
@@ -126,6 +131,7 @@
                     gameData.state = 'spinning';
                     gameData.finalAngle = Math.floor(Math.random() * 360);
                     gameData.timeLeft = 8;
+                    await updateGitHubData('game.json', gameData);
                     setTimeout(async () => {
                         gameData.result = checkBallPosition(gameData.finalAngle);
                         gameData.state = 'result';
@@ -143,15 +149,16 @@
                 }
             }
             await updateGitHubData('game.json', gameData);
+            stateSpan.textContent = gameData.state;
+            timeLeftSpan.textContent = `${gameData.timeLeft}s`;
+            onlinePlayersDiv.textContent = `Online Players: ${Object.keys(gameData.onlinePlayers || {}).length}`;
         }
-
-        setInterval(syncGameServer, 1000);
 
         function checkBallPosition(finalAngle) {
             const anglePerNumber = 360 / 36;
             const index = Math.floor(finalAngle / anglePerNumber);
             const number = (index % 36) + 1;
-            const bonuses = generateBonuses();
+            const bonus = Math.floor(Math.random() * 451) + 50; // Bonus X (50-500)
             return {
                 number,
                 isRed: index % 2 === 1,
@@ -162,21 +169,8 @@
                 isHigh: number > 18,
                 dozen: number <= 12 ? '1st12' : number <= 24 ? '2nd12' : '3rd12',
                 column: index % 3 === 0 ? 'col1' : index % 3 === 1 ? 'col2' : 'col3',
-                bonuses
+                bonus
             };
-        }
-
-        function generateBonuses() {
-            const bonusCount = Math.floor(Math.random() * 3) + 1;
-            const bonusNumbers = new Set();
-            while (bonusNumbers.size < bonusCount) {
-                bonusNumbers.add(Math.floor(Math.random() * 36) + 1);
-            }
-            const bonuses = {};
-            bonusNumbers.forEach(num => {
-                bonuses[num] = Math.floor(Math.random() * 451) + 50;
-            });
-            return bonuses;
         }
 
         async function loadRequests() {
@@ -185,6 +179,7 @@
                 alert('Password မမှန်ပါ!');
                 return;
             }
+            setInterval(manageGameServer, 1000); // Start game server
             setInterval(async () => {
                 const requests = await fetchGitHubData('requests.json') || {};
                 depositRequestsDiv.innerHTML = '<h3>Deposit Requests</h3>';
@@ -217,7 +212,7 @@
                         }
                     }
                 });
-            }, 1000); // Sync every second
+            }, 1000);
         }
 
         async function approveRequest(id, type) {
