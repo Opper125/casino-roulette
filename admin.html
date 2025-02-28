@@ -65,7 +65,7 @@
 
     <script>
         const ADMIN_PASSWORD = 'admin123'; // Change in production
-        const GITHUB_TOKEN = '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';
+        const GITHUB_TOKEN = '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';
         const GITHUB_REPO = 'Opper125/casino-roulette';
         const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/contents`;
 
@@ -75,7 +75,7 @@
         async function fetchGitHubData(file) {
             try {
                 const response = await fetch(`${GITHUB_API}/${file}`, {
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
                 });
                 if (response.ok) {
                     const data = await response.json();
@@ -93,7 +93,11 @@
                 const content = btoa(JSON.stringify(data, null, 2));
                 const response = await fetch(`${GITHUB_API}/${file}`, {
                     method: existing ? 'PUT' : 'POST',
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Authorization': `token ${GITHUB_TOKEN}`, 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/vnd.github.v3+json'
+                    },
                     body: JSON.stringify({
                         message: `Update ${file}`,
                         content,
