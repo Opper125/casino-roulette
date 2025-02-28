@@ -67,9 +67,6 @@
 
     <script>
         const ADMIN_PASSWORD = 'admin123'; // Change in production
-        const GITHUB_TOKEN = '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';
-        const GITHUB_REPO = 'Opper125/casino-roulette';
-        const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/contents`;
 
         const depositRequestsDiv = document.getElementById('deposit-requests');
         const withdrawRequestsDiv = document.getElementById('withdraw-requests');
@@ -77,53 +74,9 @@
         const timeLeftSpan = document.getElementById('timeLeft');
         const onlinePlayersDiv = document.getElementById('online-players');
 
-        async function fetchGitHubData(file) {
-            try {
-                const response = await fetch(`${GITHUB_API}/${file}`, {
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    return JSON.parse(atob(data.content));
-                } else {
-                    console.log(`Failed to fetch ${file}: ${response.status}`);
-                }
-            } catch (e) {
-                console.log('GitHub Fetch Error:', e);
-            }
-            return null;
-        }
-
-        async function updateGitHubData(file, data) {
-            try {
-                const existing = await fetchGitHubData(file);
-                const content = btoa(JSON.stringify(data, null, 2));
-                const response = await fetch(`${GITHUB_API}/${file}`, {
-                    method: existing ? 'PUT' : 'POST',
-                    headers: { 
-                        'Authorization': `token ${GITHUB_TOKEN}`, 
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/vnd.github.v3+json'
-                    },
-                    body: JSON.stringify({
-                        message: `Update ${file}`,
-                        content,
-                        sha: existing ? existing.sha : undefined
-                    })
-                });
-                if (!response.ok) {
-                    console.log(`Failed to update ${file}: ${response.status}`);
-                }
-                return response.ok;
-            } catch (e) {
-                console.log('GitHub Update Error:', e);
-                return false;
-            }
-        }
-
         // Game Server Logic
-        async function manageGameServer() {
-            let gameData = await fetchGitHubData('game.json') || { state: 'betting', timeLeft: 30, bets: {}, onlinePlayers: {} };
+        function manageGameServer() {
+            let gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 1}');
             if (gameData.timeLeft > 0) {
                 gameData.timeLeft--;
             } else {
@@ -131,27 +84,32 @@
                     gameData.state = 'spinning';
                     gameData.finalAngle = Math.floor(Math.random() * 360);
                     gameData.timeLeft = 8;
-                    await updateGitHubData('game.json', gameData);
-                    setTimeout(async () => {
+                    localStorage.setItem('gameData', JSON.stringify(gameData));
+                    setTimeout(() => {
                         gameData.result = checkBallPosition(gameData.finalAngle);
                         gameData.state = 'result';
                         gameData.timeLeft = 2;
-                        await updateGitHubData('game.json', gameData);
-                        setTimeout(async () => {
+                        localStorage.setItem('gameData', JSON.stringify(gameData));
+                        setTimeout(() => {
                             gameData.state = 'betting';
                             gameData.timeLeft = 30;
                             gameData.bets = {};
                             delete gameData.finalAngle;
                             delete gameData.result;
-                            await updateGitHubData('game.json', gameData);
+                            localStorage.setItem('gameData', JSON.stringify(gameData));
                         }, 2000);
                     }, 8000);
                 }
             }
-            await updateGitHubData('game.json', gameData);
+            localStorage.setItem('gameData', JSON.stringify(gameData));
             stateSpan.textContent = gameData.state;
             timeLeftSpan.textContent = `${gameData.timeLeft}s`;
-            onlinePlayersDiv.textContent = `Online Players: ${Object.keys(gameData.onlinePlayers || {}).length}`;
+            onlinePlayersDiv.textContent = `Online Players: ${gameData.onlinePlayers}`;
+        }
+
+        // Persistent Server Loop
+        function startPersistentServer() {
+            setInterval(manageGameServer, 1000); // Run server continuously
         }
 
         function checkBallPosition(finalAngle) {
@@ -173,15 +131,15 @@
             };
         }
 
-        async function loadRequests() {
+        function loadRequests() {
             const password = prompt('Admin Password ထည့်ပါ:');
             if (password !== ADMIN_PASSWORD) {
                 alert('Password မမှန်ပါ!');
                 return;
             }
-            setInterval(manageGameServer, 1000); // Start game server
-            setInterval(async () => {
-                const requests = await fetchGitHubData('requests.json') || {};
+            startPersistentServer(); // Start the persistent server loop
+            setInterval(() => {
+                const requests = JSON.parse(localStorage.getItem('requests') || '{}');
                 depositRequestsDiv.innerHTML = '<h3>Deposit Requests</h3>';
                 withdrawRequestsDiv.innerHTML = '<h3>Withdraw Requests</h3>';
                 Object.entries(requests).forEach(([id, req]) => {
@@ -215,39 +173,31 @@
             }, 1000);
         }
 
-        async function approveRequest(id, type) {
-            const requests = await fetchGitHubData('requests.json') || {};
+        function approveRequest(id, type) {
+            const requests = JSON.parse(localStorage.getItem('requests') || '{}');
             if (requests[id]) {
                 requests[id].status = 'approved';
                 const userId = requests[id].userId;
                 const amount = requests[id].amount;
-                const userData = await fetchGitHubData('users.json') || {};
                 if (type === 'deposit') {
-                    userData[userId].balance = (userData[userId]?.balance || 0) + amount;
+                    const userBalance = parseInt(localStorage.getItem(`${userId}_balance`) || '0') + amount;
+                    localStorage.setItem(`${userId}_balance`, userBalance);
                 }
-                const userSuccess = await updateGitHubData('users.json', userData);
-                const requestSuccess = await updateGitHubData('requests.json', requests);
-                if (!userSuccess || !requestSuccess) {
-                    alert('Approval လုပ်မှု မအောင်မြင်ပါ။ ထပ်ကြိုးစားပါ။');
-                }
+                localStorage.setItem('requests', JSON.stringify(requests));
             }
         }
 
-        async function rejectRequest(id, type) {
-            const requests = await fetchGitHubData('requests.json') || {};
+        function rejectRequest(id, type) {
+            const requests = JSON.parse(localStorage.getItem('requests') || '{}');
             if (requests[id]) {
                 requests[id].status = 'rejected';
                 const userId = requests[id].userId;
                 const amount = requests[id].amount;
-                const userData = await fetchGitHubData('users.json') || {};
                 if (type === 'withdraw') {
-                    userData[userId].balance = (userData[userId]?.balance || 0) + amount;
+                    const userBalance = parseInt(localStorage.getItem(`${userId}_balance`) || '0') + amount;
+                    localStorage.setItem(`${userId}_balance`, userBalance);
                 }
-                const userSuccess = await updateGitHubData('users.json', userData);
-                const requestSuccess = await updateGitHubData('requests.json', requests);
-                if (!userSuccess || !requestSuccess) {
-                    alert('Rejection လုပ်မှု မအောင်မြင်ပါ။ ထပ်ကြိုးစားပါ။');
-                }
+                localStorage.setItem('requests', JSON.stringify(requests));
             }
         }
 
