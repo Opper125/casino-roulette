@@ -196,14 +196,6 @@
             top: 5px;
             right: 5px;
         }
-        .balance-animation {
-            display: inline-block;
-            animation: countUp 0.33s ease-in-out;
-        }
-        @keyframes countUp {
-            0% { transform: translateY(20px); opacity: 0; }
-            100% { transform: translateY(0); opacity: 1; }
-        }
         .money-controls {
             display: flex;
             justify-content: center;
@@ -397,33 +389,18 @@
         </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
-        import { getDatabase, ref, set, onValue, update, push } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyAC0zvXE_Zv99c2RvMy3gpH5F4Is0Wm1oE",
-            authDomain: "cacino-roulette.firebaseapp.com",
-            projectId: "cacino-roulette",
-            storageBucket: "cacino-roulette.firebasestorage.app",
-            messagingSenderId: "794938085254",
-            appId: "1:794938085254:web:cd9438d783dc1fad7ae607",
-            measurementId: "G-WZWFMZD6N1"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-
+    <script>
         const userId = localStorage.getItem('userId') || `user_${Math.random().toString(36).substr(2, 9)}`;
         localStorage.setItem('userId', userId);
 
-        let balance = 0;
+        let balance = parseInt(localStorage.getItem(`${userId}_balance`) || '0');
         let totalBet = 0;
         let currentChip = null;
         let bets = {};
         let timeLeft = 30;
         let gameState = 'betting';
         let usedTransactionIds = JSON.parse(localStorage.getItem('usedTransactionIds') || '[]');
+        let onlinePlayers = 0;
 
         const spinBtn = document.getElementById('spinBtn');
         const balanceValue = document.getElementById('balance-value');
@@ -434,55 +411,79 @@
         const timer = document.getElementById('timer');
         const result = document.getElementById('result');
 
-        // Initialize user in Firebase
-        onValue(ref(db, `users/${userId}`), (snapshot) => {
-            const data = snapshot.val();
-            balance = data?.balance || 0;
+        // GitHub API Config
+        const GITHUB_TOKEN = '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';
+        const GITHUB_REPO = 'Opper125/casino-roulette';
+        const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/contents`;
+
+        async function fetchGitHubData(file) {
+            const response = await fetch(`${GITHUB_API}/${file}`, {
+                headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                return JSON.parse(atob(data.content));
+            }
+            return null;
+        }
+
+        async function updateGitHubData(file, data) {
+            const existing = await fetchGitHubData(file);
+            const content = btoa(JSON.stringify(data, null, 2));
+            const response = await fetch(`${GITHUB_API}/${file}`, {
+                method: existing ? 'PUT' : 'POST',
+                headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: `Update ${file}`,
+                    content,
+                    sha: existing ? existing.sha : undefined
+                })
+            });
+            return response.ok;
+        }
+
+        // Load initial data from GitHub
+        async function loadInitialData() {
+            const userData = await fetchGitHubData('users.json');
+            if (userData && userData[userId]) {
+                balance = userData[userId].balance;
+            }
             updateBalance();
-        }, { onlyOnce: true });
-        set(ref(db, `users/${userId}`), { balance: balance });
+            const gameData = await fetchGitHubData('game.json');
+            if (gameData) {
+                onlinePlayers = Object.keys(gameData.onlinePlayers || {}).length;
+                document.getElementById('online-players').innerHTML = `Online Players: ${onlinePlayers}`;
+                bets = gameData.bets || {};
+                updateBetCounts(bets);
+            }
+            // Register user as online
+            await updateGitHubData('game.json', { ...gameData, onlinePlayers: { ...gameData?.onlinePlayers, [userId]: true } });
+        }
 
-        // Online Players
-        onValue(ref(db, 'onlinePlayers'), (snapshot) => {
-            const count = Object.keys(snapshot.val() || {}).length;
-            document.getElementById('online-players').innerHTML = `Online Players: ${count}`;
-        });
-        update(ref(db, `onlinePlayers`), { [userId]: true });
-
-        // Game State
-        onValue(ref(db, 'gameState'), (snapshot) => {
-            const data = snapshot.val();
+        // Sync with Serverless Game State
+        async function syncGameState() {
+            const response = await fetch('/.netlify/functions/game-loop');
+            const data = await response.json();
             gameState = data.state;
             timeLeft = data.timeLeft;
             timer.innerHTML = `Time Left: ${timeLeft}s`;
-            syncGameState(data);
-        });
+            if (gameState === 'spinning') spinWheel(data.finalAngle);
+            else if (gameState === 'result') showResult(data.result);
+            else if (gameState === 'betting' && timeLeft > 5) {
+                betTable.style.display = 'grid';
+                betChips.style.display = 'flex';
+                result.innerHTML = "🎲 Chip ရွေးပြီး Bet တင်ပါ!";
+            } else if (gameState === 'betting' && timeLeft <= 5) {
+                betTable.style.display = 'none';
+                betChips.style.display = 'none';
+                result.innerHTML = "⏳ Betting ပိတ်တော့မည်!";
+            }
+            const gameData = await fetchGitHubData('game.json');
+            bets = gameData?.bets || {};
+            updateBetCounts(bets);
+        }
 
-        // Bet Updates
-        onValue(ref(db, 'bets'), (snapshot) => {
-            const betData = snapshot.val() || {};
-            updateBetCounts(betData);
-        });
-
-        // Deposit/Withdraw Responses
-        onValue(ref(db, 'depositRequests'), (snapshot) => {
-            const requests = snapshot.val() || {};
-            Object.entries(requests).forEach(([id, req]) => {
-                if (req.userId === userId && req.status !== 'pending') {
-                    handleDepositResponse(req);
-                    remove(ref(db, `depositRequests/${id}`));
-                }
-            });
-        });
-        onValue(ref(db, 'withdrawRequests'), (snapshot) => {
-            const requests = snapshot.val() || {};
-            Object.entries(requests).forEach(([id, req]) => {
-                if (req.userId === userId && req.status !== 'pending') {
-                    handleWithdrawResponse(req);
-                    remove(ref(db, `withdrawRequests/${id}`));
-                }
-            });
-        });
+        setInterval(syncGameState, 1000);
 
         function setupRoulette() {
             const numbers = Array.from({ length: 36 }, (_, i) => i + 1);
@@ -503,7 +504,8 @@
         function updateBalance(amount = 0) {
             if (amount !== 0) {
                 balance += amount;
-                update(ref(db, `users/${userId}`), { balance });
+                localStorage.setItem(`${userId}_balance`, balance);
+                updateGitHubData('users.json', { [userId]: { balance } });
             }
             balanceValue.innerHTML = balance;
             document.getElementById('balance').innerHTML = `Balance: <span id="balance-value">${balance}</span> MMK`;
@@ -518,7 +520,7 @@
         function showWithdrawModal() { document.getElementById('withdrawModal').style.display = 'flex'; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
 
-        function submitDeposit() {
+        async function submitDeposit() {
             const amount = parseInt(document.getElementById('deposit-amount').value);
             const transactionId = document.getElementById('transaction-id').value;
             if (amount < 100 || transactionId.length !== 6 || usedTransactionIds.includes(transactionId)) {
@@ -527,18 +529,21 @@
             }
             usedTransactionIds.push(transactionId);
             localStorage.setItem('usedTransactionIds', JSON.stringify(usedTransactionIds));
-            push(ref(db, 'depositRequests'), {
-                userId,
-                amount,
-                transactionId,
-                status: 'pending',
-                timestamp: Date.now()
+            const response = await fetch('/.netlify/functions/deposit', {
+                method: 'POST',
+                body: JSON.stringify({ userId, amount, transactionId })
             });
+            const data = await response.json();
+            if (data.status === 'approved') {
+                updateBalance(amount);
+                result.innerHTML = "✅ Deposit အောင်မြင်ပါပြီ!";
+            } else {
+                result.innerHTML = "❌ Deposit ပယ်ချခံရပါတယ်!";
+            }
             closeModal('depositModal');
-            result.innerHTML = "⏳ Deposit တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
         }
 
-        function submitWithdraw() {
+        async function submitWithdraw() {
             const method = document.getElementById('withdraw-method').value;
             const phone = document.getElementById('withdraw-phone').value;
             const amount = parseInt(document.getElementById('withdraw-amount').value);
@@ -547,34 +552,18 @@
                 return;
             }
             updateBalance(-amount);
-            push(ref(db, 'withdrawRequests'), {
-                userId,
-                amount,
-                method,
-                phone,
-                status: 'pending',
-                timestamp: Date.now()
+            const response = await fetch('/.netlify/functions/withdraw', {
+                method: 'POST',
+                body: JSON.stringify({ userId, amount, method, phone })
             });
-            closeModal('withdrawModal');
-            result.innerHTML = "⏳ Withdraw တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
-        }
-
-        function handleDepositResponse(req) {
-            if (req.status === 'approved') {
-                updateBalance(req.amount);
-                result.innerHTML = "✅ Deposit အောင်မြင်ပါပြီ!";
-            } else {
-                result.innerHTML = "❌ Deposit ပယ်ချခံရပါတယ်!";
-            }
-        }
-
-        function handleWithdrawResponse(req) {
-            if (req.status === 'approved') {
-                result.innerHTML = "✅ Withdraw အောင်မြင်ပါပြီ!";
-            } else {
-                updateBalance(req.amount);
+            const data = await response.json();
+            if (data.status === 'rejected') {
+                updateBalance(amount);
                 result.innerHTML = "❌ Withdraw ပယ်ချခံရပါတယ်!";
+            } else {
+                result.innerHTML = "✅ Withdraw အောင်မြင်ပါပြီ!";
             }
+            closeModal('withdrawModal');
         }
 
         function setupBetTable() {
@@ -609,16 +598,18 @@
             });
         }
 
-        function placeBet(areaId) {
+        async function placeBet(areaId) {
             if (gameState !== 'betting' || timeLeft <= 5 || !currentChip || balance < currentChip) return;
             balance -= currentChip;
             updateBalance();
             bets[areaId] = (bets[areaId] || 0) + currentChip;
             updateTotalBet();
-            update(ref(db, `bets/${areaId}`), {
-                players: firebase.database.ServerValue.increment(1),
-                total: firebase.database.ServerValue.increment(currentChip)
+            const response = await fetch('/.netlify/functions/place-bet', {
+                method: 'POST',
+                body: JSON.stringify({ userId, areaId, amount: currentChip })
             });
+            const betData = await response.json();
+            updateBetCounts(betData);
             const chipElement = document.createElement('div');
             chipElement.className = 'chip-animation';
             chipElement.textContent = currentChip >= 1000 ? `${currentChip/1000}K` : currentChip;
@@ -648,23 +639,6 @@
                 const countEl = document.getElementById(`count-${areaId}`);
                 if (countEl) countEl.innerHTML = betData[areaId].players || 0;
             });
-        }
-
-        function syncGameState(data) {
-            if (gameState === 'betting' && timeLeft > 5) {
-                spinBtn.disabled = true;
-                betTable.style.display = 'grid';
-                betChips.style.display = 'flex';
-                result.innerHTML = "🎲 Chip ရွေးပြီး Bet တင်ပါ!";
-            } else if (gameState === 'betting' && timeLeft <= 5) {
-                betTable.style.display = 'none';
-                betChips.style.display = 'none';
-                result.innerHTML = "⏳ Betting ပိတ်တော့မည်!";
-            } else if (gameState === 'spinning') {
-                spinWheel(data.finalAngle);
-            } else if (gameState === 'result') {
-                showResult(data.result);
-            }
         }
 
         function spinWheel(finalAngle) {
@@ -726,8 +700,72 @@
             document.getElementById('guide').classList.toggle('active');
         }
 
+        // Initialize
         setupRoulette();
         setupBetTable();
+        loadInitialData();
+
+        // Netlify Functions Logic (Embedded)
+        const gameLoop = async () => {
+            let gameData = await fetchGitHubData('game.json') || { onlinePlayers: {}, bets: {}, state: 'betting', timeLeft: 30 };
+            if (timeLeft > 0) {
+                timeLeft--;
+            } else {
+                if (gameState === 'betting') {
+                    gameState = 'spinning';
+                    const finalAngle = Math.floor(Math.random() * 360);
+                    timeLeft = 8;
+                    await updateGitHubData('game.json', { ...gameData, state: gameState, timeLeft, finalAngle });
+                    setTimeout(async () => {
+                        const result = checkBallPosition(finalAngle);
+                        gameState = 'result';
+                        timeLeft = 2;
+                        await updateGitHubData('game.json', { ...gameData, state: gameState, timeLeft, result, bets: {} });
+                        setTimeout(async () => {
+                            gameState = 'betting';
+                            timeLeft = 30;
+                            await updateGitHubData('game.json', { ...gameData, state: gameState, timeLeft });
+                        }, 2000);
+                    }, 8000);
+                }
+            }
+            await updateGitHubData('game.json', { ...gameData, state: gameState, timeLeft, bets });
+        };
+
+        function checkBallPosition(finalAngle) {
+            const anglePerNumber = 360 / 36;
+            const index = Math.floor(finalAngle / anglePerNumber);
+            const number = (index % 36) + 1;
+            const bonuses = generateBonuses();
+            return {
+                number,
+                isRed: index % 2 === 1,
+                isBlack: index % 2 === 0,
+                isOdd: number % 2 === 1,
+                isEven: number % 2 === 0,
+                isLow: number <= 18,
+                isHigh: number > 18,
+                dozen: number <= 12 ? '1st12' : number <= 24 ? '2nd12' : '3rd12',
+                column: index % 3 === 0 ? 'col1' : index % 3 === 1 ? 'col2' : 'col3',
+                bonuses
+            };
+        }
+
+        function generateBonuses() {
+            const bonusCount = Math.floor(Math.random() * 3) + 1;
+            const bonusNumbers = new Set();
+            while (bonusNumbers.size < bonusCount) {
+                bonusNumbers.add(Math.floor(Math.random() * 36) + 1);
+            }
+            const bonuses = {};
+            bonusNumbers.forEach(num => {
+                bonuses[num] = Math.floor(Math.random() * 451) + 50;
+            });
+            return bonuses;
+        }
+
+        // Start game loop simulation
+        setInterval(gameLoop, 1000);
     </script>
 </body>
-    </html>
+                                                                                                                    </html>
