@@ -412,14 +412,14 @@
         const result = document.getElementById('result');
 
         // GitHub API Config
-        const GITHUB_TOKEN = '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';
+        const GITHUB_TOKEN = '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';
         const GITHUB_REPO = 'Opper125/casino-roulette';
         const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/contents`;
 
         async function fetchGitHubData(file) {
             try {
                 const response = await fetch(`${GITHUB_API}/${file}`, {
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
                 });
                 if (response.ok) {
                     const data = await response.json();
@@ -437,7 +437,11 @@
                 const content = btoa(JSON.stringify(data, null, 2));
                 const response = await fetch(`${GITHUB_API}/${file}`, {
                     method: existing ? 'PUT' : 'POST',
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Authorization': `token ${GITHUB_TOKEN}`, 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/vnd.github.v3+json'
+                    },
                     body: JSON.stringify({
                         message: `Update ${file}`,
                         content,
@@ -453,19 +457,22 @@
 
         // Load initial data
         async function loadInitialData() {
-            const userData = await fetchGitHubData('users.json');
-            if (userData && userData[userId]) {
+            const userData = await fetchGitHubData('users.json') || {};
+            if (userData[userId]) {
                 balance = userData[userId].balance;
             }
             updateBalance();
-            const gameData = await fetchGitHubData('game.json');
+            const gameData = await fetchGitHubData('game.json') || {};
             if (gameData) {
                 bets = gameData.bets || {};
                 onlinePlayers = Object.keys(gameData.onlinePlayers || {}).length;
                 document.getElementById('online-players').innerHTML = `Online Players: ${onlinePlayers}`;
                 updateBetCounts(bets);
             }
-            await updateGitHubData('game.json', { ...gameData, onlinePlayers: { ...gameData?.onlinePlayers, [userId]: true } });
+            await updateGitHubData('game.json', { 
+                ...gameData, 
+                onlinePlayers: { ...gameData.onlinePlayers || {}, [userId]: true } 
+            });
         }
 
         // Game Loop
@@ -495,12 +502,12 @@
                             betTable.style.display = 'grid';
                             betChips.style.display = 'flex';
                             result.innerHTML = "🎲 Chip ရွေးပြီး Bet တင်ပါ!";
-                            updateGitHubData('game.json', { bets: {}, state: gameState, timeLeft });
+                            updateGitHubData('game.json', { bets: {}, state: gameState, timeLeft, onlinePlayers: { [userId]: true } });
                         }, 2000);
                     }, 8000);
                 }
             }
-            updateGitHubData('game.json', { bets, state: gameState, timeLeft });
+            updateGitHubData('game.json', { bets, state: gameState, timeLeft, onlinePlayers: { [userId]: true } });
         }
 
         setInterval(gameLoop, 1000);
@@ -525,6 +532,7 @@
             if (amount !== 0) {
                 balance += amount;
                 localStorage.setItem(`${userId}_balance`, balance);
+                updateGitHubData('users.json', { [userId]: { balance } });
             }
             balanceValue.innerHTML = balance;
             document.getElementById('balance').innerHTML = `Balance: <span id="balance-value">${balance}</span> MMK`;
@@ -548,14 +556,13 @@
             }
             usedTransactionIds.push(transactionId);
             localStorage.setItem('usedTransactionIds', JSON.stringify(usedTransactionIds));
-            const response = await fetch('/.netlify/functions/deposit', {
-                method: 'POST',
-                body: JSON.stringify({ userId, amount, transactionId })
-            });
-            const data = await response.json();
+            const requestId = `${userId}_${Date.now()}`;
+            const requests = await fetchGitHubData('requests.json') || {};
+            requests[requestId] = { userId, amount, transactionId, type: 'deposit', status: 'pending', timestamp: Date.now() };
+            await updateGitHubData('requests.json', requests);
             result.innerHTML = "⏳ Deposit တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
             closeModal('depositModal');
-            checkRequestStatus(data.requestId, 'deposit');
+            checkRequestStatus(requestId, 'deposit');
         }
 
         async function submitWithdraw() {
@@ -567,14 +574,13 @@
                 return;
             }
             updateBalance(-amount);
-            const response = await fetch('/.netlify/functions/withdraw', {
-                method: 'POST',
-                body: JSON.stringify({ userId, amount, method, phone })
-            });
-            const data = await response.json();
+            const requestId = `${userId}_${Date.now()}`;
+            const requests = await fetchGitHubData('requests.json') || {};
+            requests[requestId] = { userId, amount, method, phone, type: 'withdraw', status: 'pending', timestamp: Date.now() };
+            await updateGitHubData('requests.json', requests);
             result.innerHTML = "⏳ Withdraw တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
             closeModal('withdrawModal');
-            checkRequestStatus(data.requestId, 'withdraw');
+            checkRequestStatus(requestId, 'withdraw');
         }
 
         async function checkRequestStatus(requestId, type) {
@@ -634,11 +640,8 @@
             updateBalance();
             bets[areaId] = (bets[areaId] || 0) + currentChip;
             updateTotalBet();
-            const response = await fetch('/.netlify/functions/place-bet', {
-                method: 'POST',
-                body: JSON.stringify({ userId, areaId, amount: currentChip })
-            });
-            const betData = await response.json();
+            const betData = { ...bets, [areaId]: { players: (bets[areaId]?.players || 0) + 1, total: bets[areaId] } };
+            await updateGitHubData('game.json', { bets: betData, state: gameState, timeLeft, onlinePlayers: { [userId]: true } });
             updateBetCounts(betData);
             const chipElement = document.createElement('div');
             chipElement.className = 'chip-animation';
@@ -760,4 +763,4 @@
         loadInitialData();
     </script>
 </body>
-                </html>
+    </html>
