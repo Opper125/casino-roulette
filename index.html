@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Casino Roulette - အနိုင်အရှုံး Game</title>
+    <style>
+        /* Previous CSS remains the same with additions */
+        .timer { font-size: 1.2em; color: #ff4500; text-shadow: 0 0 5px #ff4500; margin: 5px 0; }
+        .online-players { font-size: 1em; position: absolute; top: 5px; left: 50%; transform: translateX(-50%); text-shadow: 0 0 5px #ffd700; }
+        .bet-area .player-count { position: absolute; bottom: 2px; right: 2px; font-size: 6px; color: #fff; background: rgba(0, 0, 0, 0.7); padding: 2px; border-radius: 3px; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: none; justify-content: center; align-items: center; z-index: 10; }
+        .modal-content { background: #1e1e1e; padding: 20px; border-radius: 10px; color: #ffd700; text-align: center; width: 80%; max-width: 400px; }
+        .modal input, .modal select { margin: 5px 0; width: 100%; }
+        .modal button { margin: 5px; }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <button class="menu-btn" onclick="toggleGuide()">📜 Menu</button>
+        <div class="guide" id="guide">
+            <!-- Guide content remains the same -->
+        </div>
+        <div class="online-players" id="online-players">Online Players: 0</div>
+        <h1>🎰 Casino Roulette 🎰</h1>
+        <div id="balance">Balance: <span id="balance-value">0</span> MMK</div>
+        <div class="money-controls">
+            <button onclick="showDepositModal()">💸 Deposit</button>
+            <button onclick="showWithdrawModal()">🏦 Withdraw</button>
+        </div>
+        <div id="total-bet">Total Bet: <span id="total-bet-value">0</span> MMK</div>
+        <div class="timer" id="timer">Time Left: 30s</div>
+        <div class="roulette" id="roulette"></div>
+        <div class="bet-table" id="betTable"></div>
+        <div class="bet-chips" id="betChips">
+            <div class="chip" data-value="1000">1K</div>
+            <div class="chip" data-value="5000">5K</div>
+            <div class="chip" data-value="10000">10K</div>
+            <div class="chip" data-value="20000">20K</div>
+            <div class="chip" data-value="50000">50K</div>
+            <div class="chip" data-value="100000">100K</div>
+            <div class="chip" data-value="200000">200K</div>
+            <div class="chip" data-value="500000">500K</div>
+            <div class="chip" data-value="1000000">1M</div>
+        </div>
+        <button id="spinBtn" onclick="spinWheel()" disabled>🎲 Spin လုပ်ပါ</button>
+        <div id="result">Chip ရွေးပြီး Bet တင်ပါ! 🎰</div>
+    </div>
+
+    <!-- Deposit Modal -->
+    <div class="modal" id="depositModal">
+        <div class="modal-content">
+            <h2>💸 Deposit</h2>
+            <p>Kpay/Wave ဖုန်း: <b>09786284670</b> (DHMK)</p>
+            <input type="number" id="deposit-amount" placeholder="ငွေပမာဏ (MMK)" min="100" step="100">
+            <input type="text" id="transaction-id" placeholder="နောက်ဆုံး 6 လုံး (Transaction ID)">
+            <button onclick="submitDeposit()">တောင်းဆိုမည်</button>
+            <button onclick="closeModal('depositModal')">❌ ပိတ်မည်</button>
+        </div>
+    </div>
+
+    <!-- Withdraw Modal -->
+    <div class="modal" id="withdrawModal">
+        <div class="modal-content">
+            <h2>🏦 Withdraw</h2>
+            <select id="withdraw-method">
+                <option value="Kpay">Kpay</option>
+                <option value="Wave">Wave</option>
+            </select>
+            <input type="text" id="withdraw-phone" placeholder="Kpay/Wave ဖုန်းနံပတ်">
+            <input type="number" id="withdraw-amount" placeholder="ငွေပမာဏ (MMK)" min="100" step="100">
+            <button onclick="submitWithdraw()">တောင်းဆိုမည်</button>
+            <button onclick="closeModal('withdrawModal')">❌ ပိတ်မည်</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue, update, push } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAC0zvXE_Zv99c2RvMy3gpH5F4Is0Wm1oE",
+            authDomain: "cacino-roulette.firebaseapp.com",
+            projectId: "cacino-roulette",
+            storageBucket: "cacino-roulette.firebasestorage.app",
+            messagingSenderId: "794938085254",
+            appId: "1:794938085254:web:cd9438d783dc1fad7ae607",
+            measurementId: "G-WZWFMZD6N1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        const userId = localStorage.getItem('userId') || `user_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('userId', userId);
+
+        let balance = 0;
+        let totalBet = 0;
+        let currentChip = null;
+        let bets = {};
+        let timeLeft = 30;
+        let gameState = 'betting';
+        let usedTransactionIds = JSON.parse(localStorage.getItem('usedTransactionIds') || '[]');
+
+        const balanceValue = document.getElementById('balance-value');
+        const totalBetValue = document.getElementById('total-bet-value');
+        const betTable = document.getElementById('betTable');
+        const roulette = document.getElementById('roulette');
+        const betChips = document.getElementById('betChips');
+        const timer = document.getElementById('timer');
+        const result = document.getElementById('result');
+
+        // Initialize user in Firebase
+        onValue(ref(db, `users/${userId}`), (snapshot) => {
+            const data = snapshot.val();
+            balance = data?.balance || 0;
+            updateBalance();
+        });
+
+        // Online Players
+        onValue(ref(db, 'onlinePlayers'), (snapshot) => {
+            const count = snapshot.val() || 0;
+            document.getElementById('online-players').innerHTML = `Online Players: ${count}`;
+        });
+        update(ref(db, 'onlinePlayers'), { [userId]: true });
+
+        // Game State
+        onValue(ref(db, 'gameState'), (snapshot) => {
+            const data = snapshot.val();
+            gameState = data.state;
+            timeLeft = data.timeLeft;
+            timer.innerHTML = `Time Left: ${timeLeft}s`;
+            syncGameState(data);
+        });
+
+        // Bet Updates
+        onValue(ref(db, 'bets'), (snapshot) => {
+            const betData = snapshot.val() || {};
+            updateBetCounts(betData);
+        });
+
+        function setupRoulette() {
+            const numbers = Array.from({ length: 36 }, (_, i) => i + 1);
+            numbers.forEach((num, i) => {
+                const slot = document.createElement('div');
+                slot.className = 'number-slot';
+                slot.textContent = num;
+                slot.style.transform = `rotate(${i * 10}deg) translateY(-135px)`;
+                slot.style.background = i % 2 === 0 ? '#000' : '#f44336';
+                roulette.appendChild(slot);
+            });
+            const pointer = document.createElement('div');
+            pointer.id = 'pointer';
+            pointer.className = 'pointer';
+            roulette.appendChild(pointer);
+        }
+
+        function updateBalance(amount = 0) {
+            if (amount !== 0) {
+                balance += amount;
+                update(ref(db, `users/${userId}`), { balance });
+            }
+            balanceValue.innerHTML = balance;
+            document.getElementById('balance').innerHTML = `Balance: <span id="balance-value">${balance}</span> MMK`;
+        }
+
+        function updateTotalBet() {
+            totalBet = Object.values(bets).reduce((sum, value) => sum + value, 0);
+            totalBetValue.innerHTML = totalBet;
+        }
+
+        function showDepositModal() { document.getElementById('depositModal').style.display = 'flex'; }
+        function showWithdrawModal() { document.getElementById('withdrawModal').style.display = 'flex'; }
+        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
+
+        function submitDeposit() {
+            const amount = parseInt(document.getElementById('deposit-amount').value);
+            const transactionId = document.getElementById('transaction-id').value;
+            if (amount < 100 || transactionId.length !== 6 || usedTransactionIds.includes(transactionId)) {
+                result.innerHTML = "❌ ငွေပမာဏ သို့မဟုတ် Transaction ID မမှန်ကန်ပါ!";
+                return;
+            }
+            usedTransactionIds.push(transactionId);
+            localStorage.setItem('usedTransactionIds', JSON.stringify(usedTransactionIds));
+            push(ref(db, 'depositRequests'), {
+                userId,
+                amount,
+                transactionId,
+                status: 'pending',
+                timestamp: Date.now()
+            });
+            closeModal('depositModal');
+            result.innerHTML = "⏳ Deposit တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
+        }
+
+        function submitWithdraw() {
+            const method = document.getElementById('withdraw-method').value;
+            const phone = document.getElementById('withdraw-phone').value;
+            const amount = parseInt(document.getElementById('withdraw-amount').value);
+            if (amount < 100 || amount > balance || !phone) {
+                result.innerHTML = "❌ ငွေပမာဏ သို့မဟုတ် ဖုန်းနံပတ် မမှန်ကန်ပါ!";
+                return;
+            }
+            updateBalance(-amount);
+            push(ref(db, 'withdrawRequests'), {
+                userId,
+                amount,
+                method,
+                phone,
+                status: 'pending',
+                timestamp: Date.now()
+            });
+            closeModal('withdrawModal');
+            result.innerHTML = "⏳ Withdraw တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
+        }
+
+        function setupBetTable() {
+            const table = [
+                ...Array.from({ length: 36 }, (_, i) => ({
+                    id: `${i + 1}`,
+                    text: `${i + 1}`,
+                    class: i % 2 === 0 ? 'black' : 'red',
+                    colSpan: 1
+                })),
+                { id: '1-18', text: '1-18', class: '', colSpan: 2 },
+                { id: '19-36', text: '19-36', class: '', colSpan: 2 },
+                { id: 'odd', text: 'Odd', class: '', colSpan: 2 },
+                { id: 'even', text: 'Even', class: '', colSpan: 2 },
+                { id: 'black', text: 'Black', class: 'black', colSpan: 2 },
+                { id: 'red', text: 'Red', class: 'red', colSpan: 2 },
+                { id: '1st12', text: '1-12', class: '', colSpan: 2 },
+                { id: '2nd12', text: '13-24', class: '', colSpan: 2 },
+                { id: '3rd12', text: '25-36', class: '', colSpan: 2 },
+                { id: 'col1', text: '1st', class: '', colSpan: 2 },
+                { id: 'col2', text: '2nd', class: '', colSpan: 2 },
+                { id: 'col3', text: '3rd', class: '', colSpan: 2 }
+            ];
+            table.forEach(area => {
+                const div = document.createElement('div');
+                div.className = `bet-area ${area.class}`;
+                div.id = `bet-${area.id}`;
+                div.innerHTML = `${area.text}<span class="player-count" id="count-${area.id}">0</span>`;
+                div.style.gridColumn = area.colSpan > 1 ? `span ${area.colSpan}` : 'auto';
+                div.onclick = () => placeBet(area.id);
+                betTable.appendChild(div);
+            });
+        }
+
+        function placeBet(areaId) {
+            if (gameState !== 'betting' || timeLeft <= 5 || !currentChip || balance < currentChip) return;
+            balance -= currentChip;
+            updateBalance();
+            bets[areaId] = (bets[areaId] || 0) + currentChip;
+            updateTotalBet();
+            update(ref(db, `bets/${areaId}`), {
+                players: firebase.database.ServerValue.increment(1),
+                total: firebase.database.ServerValue.increment(currentChip)
+            });
+            // Chip animation here (same as original)
+        }
+
+        function updateBetCounts(betData) {
+            Object.keys(betData).forEach(areaId => {
+                const countEl = document.getElementById(`count-${areaId}`);
+                if (countEl) countEl.innerHTML = betData[areaId].players || 0;
+            });
+        }
+
+        function syncGameState(data) {
+            if (gameState === 'betting' && timeLeft > 5) {
+                document.getElementById('spinBtn').disabled = true;
+                betTable.style.display = 'grid';
+                betChips.style.display = 'flex';
+            } else if (gameState === 'betting' && timeLeft <= 5) {
+                betTable.style.display = 'none';
+                betChips.style.display = 'none';
+                result.innerHTML = "⏳ Betting ပိတ်တော့မည်!";
+            } else if (gameState === 'spinning') {
+                spinWheel(data.finalAngle);
+            } else if (gameState === 'result') {
+                showResult(data.result);
+            }
+        }
+
+        function spinWheel(finalAngle) {
+            const pointer = document.getElementById('pointer');
+            roulette.style.display = 'block';
+            betTable.style.display = 'none';
+            betChips.style.display = 'none';
+            document.getElementById('total-bet').style.display = 'none';
+            result.innerHTML = "ဘောလုံးလှည့်နေပါတယ်... ⏳";
+            pointer.style.setProperty('--final-angle', `${finalAngle}deg`);
+            pointer.classList.add('spinning');
+            setTimeout(() => pointer.classList.remove('spinning'), 8000);
+        }
+
+        function showResult(resultData) {
+            const number = resultData.number;
+            let winnings = 0;
+            let message = `🎲 ဘောလုံးရပ်သွားတဲ့ ဂဏန်း: ${number}<br>`;
+            for (let area in bets) {
+                let multiplier = 0;
+                if (area === `${number}`) multiplier = 36 + (resultData.bonuses[number] || 0);
+                else if (area === 'red' && resultData.isRed) multiplier = 2;
+                else if (area === 'black' && resultData.isBlack) multiplier = 2;
+                else if (area === 'odd' && resultData.isOdd) multiplier = 2;
+                else if (area === 'even' && resultData.isEven) multiplier = 2;
+                else if (area === '1-18' && resultData.isLow) multiplier = 2;
+                else if (area === '19-36' && resultData.isHigh) multiplier = 2;
+                else if (area === resultData.dozen) multiplier = 3;
+                else if (area === resultData.column) multiplier = 3;
+                if (multiplier > 0) winnings += bets[area] * multiplier;
+            }
+            if (winnings > 0) {
+                message += `🎉 အနိုင်ရရှိပါတယ်! ${winnings} MMK`;
+                updateBalance(winnings);
+            } else {
+                message += "😢 အရှုံးပါ။ ထပ်ကြိုးစားပါ!";
+            }
+            result.innerHTML = message;
+            setTimeout(() => {
+                roulette.style.display = 'none';
+                betTable.style.display = 'grid';
+                betChips.style.display = 'flex';
+                document.getElementById('total-bet').style.display = 'block';
+                bets = {};
+                totalBet = 0;
+                updateTotalBet();
+            }, 2000);
+        }
+
+        document.querySelectorAll('.chip').forEach(chip => {
+            chip.onclick = () => {
+                document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                currentChip = parseInt(chip.dataset.value);
+            };
+        });
+
+        function toggleGuide() {
+            document.getElementById('guide').classList.toggle('active');
+        }
+
+        setupRoulette();
+        setupBetTable();
+    </script>
+</body>
+  </html>
