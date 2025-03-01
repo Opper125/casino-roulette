@@ -372,7 +372,7 @@
             <div class="chip" data-value="1000000">1M</div>
         </div>
         <button id="spinBtn" disabled>🎲 Spin လုပ်ပါ</button>
-        <div id="result">Chip ရွေးပြီး Bet တင်ပါ! 🎰</div>
+        <div id="result">Admin ဖွင့်မှ Bet တင်နိုင်ပါတယ်! 🎰</div>
     </div>
 
     <!-- Login Modal -->
@@ -479,11 +479,15 @@
         // Sync Game State
         function syncGameState() {
             setInterval(() => {
-                const gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 1, "bonusSlots": []}');
+                const gameData = JSON.parse(localStorage.getItem('gameData') || '{}');
+                if (!gameData.state) {
+                    result.innerHTML = "⏳ Admin ဖွင့်ရန် စောင့်ပါ...";
+                    return;
+                }
                 gameState = gameData.state;
                 timeLeft = gameData.timeLeft;
                 allBets = gameData.bets || {};
-                onlinePlayers = gameData.onlinePlayers || 1;
+                onlinePlayers = gameData.onlinePlayers || 0;
                 bonusSlots = gameData.bonusSlots || [];
                 timer.innerHTML = `Time Left: ${timeLeft}s`;
                 document.getElementById('online-players').innerHTML = `Online Players: ${onlinePlayers}`;
@@ -653,7 +657,7 @@
             bets[areaId] = (bets[areaId] || 0) + currentChip;
             allBets[areaId] = (allBets[areaId] || 0) + currentChip;
             localStorage.setItem(`bets_${userId}`, JSON.stringify(bets));
-            const gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 1, "bonusSlots": []}');
+            const gameData = JSON.parse(localStorage.getItem('gameData') || '{}');
             gameData.bets = allBets;
             localStorage.setItem('gameData', JSON.stringify(gameData));
             updateBetCounts(allBets);
