@@ -502,6 +502,16 @@
             updateBetCounts(allBets);
             updateHistory();
             timer.innerHTML = `Time Left: ${timeLeft}s`;
+
+            const gameData = JSON.parse(localStorage.getItem('gameData') || '{}');
+            if (!gameData || !gameData.isRunning) {
+                result.innerHTML = "⏳ Admin ဖွင့်ရန် စောင့်ပါ...";
+                betTable.style.display = 'none';
+                betChips.style.display = 'none';
+                roulette.style.display = 'none';
+                return;
+            }
+
             if (gameState === 'betting' && timeLeft > 7) {
                 betTable.style.display = 'grid';
                 betChips.style.display = 'flex';
@@ -510,20 +520,26 @@
             } else if (gameState === 'betting' && timeLeft <= 7) {
                 betTable.style.display = 'none';
                 betChips.style.display = 'none';
+                roulette.style.display = 'none';
                 result.innerHTML = "⏳ Betting ပိတ်တော့မည်!";
             } else if (gameState === 'spinning') {
-                spinWheel(JSON.parse(localStorage.getItem('gameData')).finalAngle);
+                betTable.style.display = 'none';
+                betChips.style.display = 'none';
+                roulette.style.display = 'block';
+                spinWheel(gameData.finalAngle);
             } else if (gameState === 'result') {
-                showResult(JSON.parse(localStorage.getItem('gameData')).result);
+                betTable.style.display = 'none';
+                betChips.style.display = 'none';
+                roulette.style.display = 'block';
+                showResult(gameData.result);
             }
         }
 
-        // Sync Game State
+        // Sync Game State with Admin
         function syncGameState() {
             setInterval(() => {
                 const gameData = JSON.parse(localStorage.getItem('gameData') || '{}');
                 if (!gameData || !gameData.isRunning) {
-                    result.innerHTML = "⏳ Admin ဖွင့်ရန် စောင့်ပါ...";
                     gameState = 'stopped';
                     timeLeft = 30;
                     bets = {};
@@ -537,7 +553,7 @@
                 onlinePlayers = gameData.onlinePlayers || 0;
                 bonusSlots = gameData.bonusSlots || [];
                 updateUI();
-            }, 1000);
+            }, 1000); // စက္ကန့်တိုင်း အပ်ဒိတ်လုပ်မယ်
         }
 
         function setupRoulette() {
@@ -728,8 +744,6 @@
         function spinWheel(finalAngle) {
             const pointer = document.getElementById('pointer');
             roulette.style.display = 'block';
-            betTable.style.display = 'none';
-            betChips.style.display = 'none';
             result.innerHTML = "ဘောလုံးလှည့်နေပါတယ်... ⏳";
             pointer.style.setProperty('--final-angle', `${finalAngle}deg`);
             pointer.classList.add('spinning');
