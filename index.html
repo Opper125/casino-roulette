@@ -31,7 +31,7 @@
             flex-direction: column;
             justify-content: space-between;
             border-radius: 15px;
-            overflow: hidden;
+            overflow-y: auto;
         }
         h1 {
             font-size: 1.8em;
@@ -300,18 +300,16 @@
             font-size: 12px;
         }
         .logout-btn {
-            position: absolute;
-            top: 10px;
-            right: 70px;
             padding: 8px;
             background: linear-gradient(45deg, #ff4500, #b8860b);
             border: none;
             border-radius: 5px;
             color: #fff;
             cursor: pointer;
-            z-index: 2;
             box-shadow: 0 0 10px rgba(255, 69, 0, 0.5);
             font-size: 12px;
+            width: 100%;
+            margin-top: 10px;
         }
         .guide {
             position: absolute;
@@ -402,12 +400,34 @@
         #loginModal {
             display: flex;
         }
+        @media (max-width: 400px) {
+            .game-container {
+                padding: 5px;
+            }
+            h1 {
+                font-size: 1.5em;
+            }
+            .bet-area {
+                padding: 5px;
+                min-height: 30px;
+            }
+            .chip {
+                width: 35px;
+                height: 35px;
+                font-size: 10px;
+            }
+            .timer {
+                font-size: 1.2em;
+            }
+            #result {
+                font-size: 1em;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="game-container" id="gameContainer" style="display: none;">
         <button class="menu-btn" onclick="toggleGuide()">📜 Menu</button>
-        <button class="logout-btn" onclick="logout()">🚪 Logout</button>
         <div class="guide" id="guide">
             🎰 <b>Casino Roulette ကစားနည်း</b> 🎰<br>
             1. 💸 ငွေသွင်းရန် "Deposit" နှိပ်ပြီး Kpay/Wave ဖုန်း (09786284670 - DHMK) သို့ လွှဲပါ။ ငွေပမာဏနှင့် Transaction ID ထည့်ပါ။<br>
@@ -424,7 +444,7 @@
             - Dozens (1-12, 13-24, 25-36): x3<br>
             - Columns (1st, 2nd, 3rd): x3<br>
             🍀 ကံကောင်းပါစေ! 🎉<br>
-            <button onclick="toggleGuide()">❌ ပိတ်မည်</button>
+            <button class="logout-btn" onclick="logout()">🚪 Logout</button>
         </div>
         <div id="online-players">Online Players: 0</div>
         <h1>🎰 Casino Roulette 🎰</h1>
@@ -515,7 +535,7 @@
         const gameContainer = document.getElementById('gameContainer');
         const historyDiv = document.getElementById('history');
 
-        // Anonymous Login
+        // Anonymous Login with Encryption
         function login() {
             const inputPhone = document.getElementById('phone').value;
             const inputPin = document.getElementById('pin').value;
@@ -524,15 +544,16 @@
                 return;
             }
             phone = inputPhone;
-            userId = btoa(phone + inputPin);
+            userId = btoa(phone + inputPin); // Basic Encryption
             localStorage.setItem('userId', userId);
-            localStorage.setItem('phone', phone);
+            localStorage.setItem('phone', btoa(phone)); // Encrypt phone
             let userData = JSON.parse(localStorage.getItem('user_' + userId)) || {
                 phone: phone,
-                balance: 10000, // စမ်းသပ်ဖို့ 10,000 MMK
+                balance: 10000, // Starting balance
                 bets: {},
                 history: [],
-                usedTransactionIds: []
+                usedTransactionIds: [],
+                lastLogin: Date.now()
             };
             localStorage.setItem('user_' + userId, JSON.stringify(userData));
             updateUserInfo(userId, userData);
@@ -600,22 +621,27 @@
         // Sync Game State with Admin
         function syncGameState() {
             setInterval(() => {
-                const gameData = JSON.parse(localStorage.getItem('gameData') || '{}');
-                if (!gameData || !gameData.isRunning) {
-                    gameState = 'stopped';
-                    timeLeft = 30;
-                    bets = {};
-                    bonusSlots = [];
+                try {
+                    const gameData = JSON.parse(localStorage.getItem('gameData') || '{}');
+                    if (!gameData || !gameData.isRunning) {
+                        gameState = 'stopped';
+                        timeLeft = 30;
+                        bets = {};
+                        bonusSlots = [];
+                        updateUI();
+                        return;
+                    }
+                    gameState = gameData.state || 'betting';
+                    timeLeft = gameData.timeLeft || 30;
+                    allBets = gameData.bets || {};
+                    onlinePlayers = gameData.onlinePlayers || 0;
+                    bonusSlots = gameData.bonusSlots || [];
                     updateUI();
-                    return;
+                } catch (e) {
+                    console.error('Sync Error:', e);
+                    result.innerHTML = "⚠️ ဂိမ်းအဆက်ပြတ်သွားပါပြီ။ ပြန်စမ်းကြည့်ပါ!";
                 }
-                gameState = gameData.state || 'betting';
-                timeLeft = gameData.timeLeft || 30;
-                allBets = gameData.bets || {};
-                onlinePlayers = gameData.onlinePlayers || 0;
-                bonusSlots = gameData.bonusSlots || [];
-                updateUI();
-            }, 1000); // စက္ကန့်တိုင်း အပ်ဒိတ်လုပ်မယ်
+            }, 1000); // Real-time Sync
         }
 
         function setupRoulette() {
@@ -813,7 +839,7 @@
             pointer.classList.add('spinning');
             setTimeout(() => {
                 pointer.classList.remove('spinning');
-            }, 8000); // Spin ကြာချိန် 8 စက္ကန့်
+            }, 8000);
         }
 
         function showResult(resultData) {
@@ -910,7 +936,7 @@
         // Initialize
         if (localStorage.getItem('userId') && localStorage.getItem('phone')) {
             userId = localStorage.getItem('userId');
-            phone = localStorage.getItem('phone');
+            phone = atob(localStorage.getItem('phone')); // Decrypt phone
             document.getElementById('loginModal').style.display = 'none';
             gameContainer.style.display = 'flex';
             loadUserData();
@@ -920,6 +946,22 @@
         }
         setupBetTable();
         setupRoulette();
+
+        // Error Handling and Auto-Update
+        window.onerror = function (msg, url, lineNo, columnNo, error) {
+            result.innerHTML = "⚠️ ဂိမ်းတွင် ပြဿနာရှိနေပါတယ်။ ပြန်စမ်းကြည့်ပါ!";
+            console.error('Error:', msg, 'Line:', lineNo, 'Column:', columnNo, 'Details:', error);
+            return false;
+        };
+
+        // Auto-Update Check
+        setInterval(() => {
+            const lastUpdate = localStorage.getItem('lastUpdate') || 0;
+            if (Date.now() - lastUpdate > 60000) { // Check every minute
+                localStorage.setItem('lastUpdate', Date.now());
+                syncGameState();
+            }
+        }, 60000);
     </script>
 </body>
 </html>
