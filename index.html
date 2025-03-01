@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Casino Roulette - Game Zone Myanmar</title>
     <style>
-        /* မူရင်း CSS အားလုံးကို ထည့်ထားပါတယ်။ ပြောင်းလဲမှု မလိုအပ်ပါ။ */
         body {
             font-family: 'Arial', sans-serif;
             background: #1a1a1a;
@@ -394,7 +393,7 @@
             <div class="chip" data-value="1000000">1M</div>
         </div>
         <button id="spinBtn" disabled>🎲 Spin လုပ်ပါ</button>
-        <div id="result">Admin ဖွင့်မှ Bet တင်နိုင်ပါတယ်! 🎰</div>
+        <div id="result">ကစားရန် အကောင့်ဝင်ပါ!</div>
     </div>
 
     <!-- Login Modal -->
@@ -495,7 +494,7 @@
                     if (!snapshot.exists()) {
                         db.ref('users/' + userId).set({
                             phone: phone,
-                            balance: 0,
+                            balance: 10000, // စမ်းသပ်ဖို့ အစပိုင်း 10,000 MMK ပေးထားတယ်
                             createdAt: firebase.database.ServerValue.TIMESTAMP
                         });
                     }
@@ -506,7 +505,7 @@
                 });
             }).catch((error) => {
                 console.error("Auth Error:", error);
-                result.innerHTML = "❌ အကောင့်ဝင်ရောက်မှု မအောင်မြင်ပါ!";
+                result.innerHTML = "❌ အကောင့်ဝင်မှု မအောင်မြင်ပါ!";
             });
         }
 
@@ -559,7 +558,7 @@
                     else if (gameState === 'result') showResult(gameData.result);
                 } catch (e) {
                     console.error('Error syncing game state:', e);
-                    result.innerHTML = "❌ ဂိမ်းချိတ်ဆက်မှု ပြဿနာရှိနေပါတယ်။";
+                    result.innerHTML = "❌ ဂိမ်းချိတ်ဆက်မှု ပြဿနာ!";
                 }
             });
         }
@@ -583,7 +582,7 @@
         function updateBalance(amount = 0) {
             if (amount !== 0) {
                 balance += amount;
-                db.ref('users/' + userId).update({ balance: balance });
+                db.ref('users/' + userId).update({ balance });
             }
             balanceValue.innerHTML = balance;
             document.getElementById('balance').innerHTML = `Balance: <span id="balance-value">${balance}</span> MMK`;
@@ -626,7 +625,7 @@
             const phoneWithdraw = document.getElementById('withdraw-phone').value;
             const amount = parseInt(document.getElementById('withdraw-amount').value);
             if (!amount || amount < 100 || amount > balance || !phoneWithdraw) {
-                result.innerHTML = "❌ ငွေပမာဏ သို့မဟုတ် ဖုန်းနံပတ် မမှန်ကန်ပါ!";
+                result.innerHTML = "❌ ငွေပမာဏ သို့မဟုတ် ဖုန်းနံပတ် မမှန်ပါ!";
                 return;
             }
             updateBalance(-amount);
@@ -832,8 +831,6 @@
             gameContainer.style.display = 'flex';
             loadUserData();
             syncGameState();
-        } else {
-            result.innerHTML = "🎮 အကောင့်ဖွင့်ရန် ဖုန်းနံပတ်နှင့် PIN ထည့်ပါ!";
         }
         setupBetTable();
         setupRoulette();
