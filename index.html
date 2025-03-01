@@ -447,6 +447,7 @@
         let onlinePlayers = 0;
         let bonusSlots = [];
         let history = [];
+        let lastGameState = null;
 
         const spinBtn = document.getElementById('spinBtn');
         const balanceValue = document.getElementById('balance-value');
@@ -522,17 +523,13 @@
                 betChips.style.display = 'none';
                 roulette.style.display = 'none';
                 result.innerHTML = "⏳ Betting ပိတ်တော့မည်!";
-            } else if (gameState === 'spinning') {
-                betTable.style.display = 'none';
-                betChips.style.display = 'none';
-                roulette.style.display = 'block';
-                spinWheel(gameData.finalAngle);
-            } else if (gameState === 'result') {
-                betTable.style.display = 'none';
-                betChips.style.display = 'none';
-                roulette.style.display = 'block';
+            } else if (gameState === 'spinning' && lastGameState !== 'spinning') {
+                startSpin(gameData.finalAngle);
+            } else if (gameState === 'result' && lastGameState !== 'result') {
                 showResult(gameData.result);
+                resetGame();
             }
+            lastGameState = gameState;
         }
 
         // Sync Game State with Admin
@@ -741,7 +738,7 @@
             });
         }
 
-        function spinWheel(finalAngle) {
+        function startSpin(finalAngle) {
             const pointer = document.getElementById('pointer');
             roulette.style.display = 'block';
             result.innerHTML = "ဘောလုံးလှည့်နေပါတယ်... ⏳";
@@ -768,7 +765,9 @@
                 else if (area === '19-36' && resultData.isHigh) multiplier = 2;
                 else if (area === resultData.dozen) multiplier = 3;
                 else if (area === resultData.column) multiplier = 3;
-                if (multiplier > 0) winnings += bets[area] * multiplier;
+                if (multiplier > 0) {
+                    winnings += bets[area] * multiplier;
+                }
             }
             if (winnings > 0) {
                 message += `🎉 အနိုင်ရရှိပါတယ်! ${winnings} MMK`;
@@ -777,6 +776,10 @@
                 message += "😢 အရှုံးပါ။ ထပ်ကြိုးစားပါ!";
             }
             result.innerHTML = message;
+            updateHistory(resultData);
+        }
+
+        function resetGame() {
             bets = {};
             const userData = JSON.parse(localStorage.getItem('user_' + userId));
             userData.bets = bets;
@@ -784,7 +787,6 @@
             updateUserInfo(userId, userData);
             updateBetCounts(allBets);
             clearBetTable();
-            updateHistory(resultData);
         }
 
         function clearBetTable() {
@@ -792,6 +794,8 @@
                 const betArea = document.getElementById(`bet-${i}`);
                 const chip = betArea && betArea.querySelector('.bet-chip');
                 if (chip) chip.remove();
+                const bonusEl = betArea && betArea.querySelector('.bonus-x');
+                if (bonusEl) bonusEl.remove();
             }
             ['1-18', '19-36', 'odd', 'even', 'black', 'red', '1st12', '2nd12', '3rd12', 'col1', 'col2', 'col3'].forEach(area => {
                 const betArea = document.getElementById(`bet-${area}`);
