@@ -33,6 +33,7 @@
         h1 {
             font-size: 1.5em;
             margin: 5px 0;
+            color: #8b4513; /* Brown color for title */
             text-shadow: 0 0 10px #ffd700;
         }
         .roulette {
@@ -200,21 +201,25 @@
         }
         #result {
             font-size: 1em;
-            margin: 5px 0;
+            margin: 5px 0 0 0;
             text-shadow: 0 0 5px #ffd700;
+            flex-grow: 1;
         }
-        #total-bet {
+        #balance, #online-players {
             font-size: 1em;
-            margin: 5px 0;
+            color: #ffd700;
             text-shadow: 0 0 5px #ffd700;
         }
         #balance {
-            font-size: 1em;
-            margin: 5px 0;
-            text-shadow: 0 0 5px #ffd700;
             position: absolute;
             top: 5px;
             right: 5px;
+        }
+        #online-players {
+            position: absolute;
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
         }
         .money-controls {
             display: flex;
@@ -287,13 +292,29 @@
             text-shadow: 0 0 5px #ff4500;
             margin: 5px 0;
         }
-        .online-players {
-            font-size: 1em;
-            position: absolute;
-            top: 5px;
-            left: 50%;
-            transform: translateX(-50%);
-            text-shadow: 0 0 5px #ffd700;
+        .history {
+            width: 95%;
+            margin: 0 auto;
+            padding: 5px 0;
+            font-size: 0.8em;
+            color: #ffd700;
+            text-align: center;
+            position: relative;
+            top: -10px;
+            z-index: 1;
+        }
+        .history-item {
+            display: inline-block;
+            margin: 0 5px;
+            font-size: 12px;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        .history-item.black {
+            background: #000;
+        }
+        .history-item.red {
+            background: #f44336;
         }
         .modal {
             position: fixed;
@@ -335,7 +356,7 @@
             🎰 <b>Casino Roulette ကစားနည်း</b> 🎰<br>
             1. 💸 ငွေသွင်းရန် "Deposit" နှိပ်ပြီး Kpay/Wave ဖုန်း (09786284670 - DHMK) သို့ လွှဲပါ။ ငွေပမာဏနှင့် Transaction ID ထည့်ပါ။<br>
             2. 🏦 ငွေထုတ်ရန် "Withdraw" နှိပ်ပြီး Kpay/Wave ဖုန်းနံပတ်နှင့် ပမာဏထည့်ပါ။<br>
-            3. 🎲 Chip (1K-1M) ရွေးပြီး အကွက်ပေါ် နှိပ်ကာ Bet တင်ပါ (Total Bet ထဲ ပြပါတယ်)။<br>
+            3. 🎲 Chip (1K-1M) ရွေးပြီး အကွက်ပေါ် နှိပ်ကာ Bet တင်ပါ။<br>
             4. 🔄 30 စက္ကန့်တိုင်း အလိုအလျောက် Spin လုပ်ပြီး Bonus X ပြပါတယ်။<br>
             5. 🎯 Bonus X (x50-x500) ကို ကျပန်းအကွက် 1-3 ခုမှာ ထည့်ပေးပါတယ်။<br>
             6. 🏆 အနိုင်ရရင် 36x + Bonus X ပေါင်းပြီး Balance ထဲ ထည့်ပေးပါတယ်။<br>
@@ -349,17 +370,17 @@
             🍀 ကံကောင်းပါစေ! 🎉<br>
             <button onclick="toggleGuide()">❌ ပိတ်မည်</button>
         </div>
-        <div class="online-players" id="online-players">Online Players: 0</div>
+        <div id="online-players">Online Players: 0</div>
         <h1>🎰 Casino Roulette 🎰</h1>
         <div id="balance">Balance: <span id="balance-value">0</span> MMK</div>
         <div class="money-controls">
             <button onclick="showDepositModal()">💸 Deposit</button>
             <button onclick="showWithdrawModal()">🏦 Withdraw</button>
         </div>
-        <div id="total-bet">Total Bet: <span id="total-bet-value">0</span> MMK</div>
         <div class="timer" id="timer">Time Left: 30s</div>
         <div class="roulette" id="roulette"></div>
         <div class="bet-table" id="betTable"></div>
+        <div class="history" id="history"></div>
         <div class="bet-chips" id="betChips">
             <div class="chip" data-value="1000">1K</div>
             <div class="chip" data-value="5000">5K</div>
@@ -426,16 +447,17 @@
         let usedTransactionIds = JSON.parse(localStorage.getItem(`${userId}_usedTransactionIds`) || '[]');
         let onlinePlayers = parseInt(localStorage.getItem('onlinePlayers') || '0');
         let bonusSlots = JSON.parse(localStorage.getItem('bonusSlots') || '[]');
+        let history = JSON.parse(localStorage.getItem('history') || '[]');
 
         const spinBtn = document.getElementById('spinBtn');
         const balanceValue = document.getElementById('balance-value');
-        const totalBetValue = document.getElementById('total-bet-value');
         const betTable = document.getElementById('betTable');
         const roulette = document.getElementById('roulette');
         const betChips = document.getElementById('betChips');
         const timer = document.getElementById('timer');
         const result = document.getElementById('result');
         const gameContainer = document.getElementById('gameContainer');
+        const historyDiv = document.getElementById('history');
 
         // Login Function
         function login() {
@@ -470,9 +492,11 @@
             timeLeft = parseInt(localStorage.getItem('timeLeft') || '30');
             onlinePlayers = parseInt(localStorage.getItem('onlinePlayers') || '0');
             bonusSlots = JSON.parse(localStorage.getItem('bonusSlots') || '[]');
+            history = JSON.parse(localStorage.getItem('history') || '[]');
             updateBalance();
             document.getElementById('online-players').innerHTML = `Online Players: ${onlinePlayers}`;
             updateBetCounts(allBets);
+            updateHistory();
             timer.innerHTML = `Time Left: ${timeLeft}s`;
         }
 
@@ -492,13 +516,12 @@
                 timer.innerHTML = `Time Left: ${timeLeft}s`;
                 document.getElementById('online-players').innerHTML = `Online Players: ${onlinePlayers}`;
                 updateBetCounts(allBets);
-                if (gameState === 'betting' && timeLeft > 5) {
+                if (gameState === 'betting' && timeLeft > 7) {
                     betTable.style.display = 'grid';
                     betChips.style.display = 'flex';
                     roulette.style.display = 'none';
-                    document.getElementById('total-bet').style.display = 'block';
                     result.innerHTML = "🎲 Chip ရွေးပြီး Bet တင်ပါ!";
-                } else if (gameState === 'betting' && timeLeft <= 5) {
+                } else if (gameState === 'betting' && timeLeft <= 7) {
                     betTable.style.display = 'none';
                     betChips.style.display = 'none';
                     result.innerHTML = "⏳ Betting ပိတ်တော့မည်!";
@@ -537,7 +560,6 @@
 
         function updateTotalBet() {
             totalBet = Object.values(bets).reduce((sum, value) => sum + value, 0);
-            totalBetValue.innerHTML = totalBet;
         }
 
         function showDepositModal() { document.getElementById('depositModal').style.display = 'flex'; }
@@ -683,11 +705,11 @@
                 if (userBetEl) userBetEl.innerHTML = bets[i] ? (bets[i] >= 1000 ? `${bets[i]/1000}K` : bets[i]) : '0';
                 if (allBetEl) allBetEl.innerHTML = allBets[i] ? (allBets[i] >= 1000 ? `${allBets[i]/1000}K` : allBets[i]) : '0';
                 const bonusEl = document.getElementById(`bet-${i}`).querySelector('.bonus-x');
-                if (bonusSlots.includes(i)) {
+                if (bonusSlots.some(slot => slot.number === i)) {
                     if (!bonusEl) {
                         const bonusX = document.createElement('span');
                         bonusX.className = 'bonus-x';
-                        bonusX.innerHTML = `x${gameData.bonusSlots.find(slot => slot.number === i).bonus}`;
+                        bonusX.innerHTML = `x${bonusSlots.find(slot => slot.number === i).bonus}`;
                         document.getElementById(`bet-${i}`).appendChild(bonusX);
                     }
                 } else if (bonusEl) {
@@ -707,7 +729,6 @@
             roulette.style.display = 'block';
             betTable.style.display = 'none';
             betChips.style.display = 'none';
-            document.getElementById('total-bet').style.display = 'none';
             result.innerHTML = "ဘောလုံးလှည့်နေပါတယ်... ⏳";
             pointer.style.setProperty('--final-angle', `${finalAngle}deg`);
             pointer.classList.add('spinning');
@@ -747,6 +768,7 @@
             updateBetCounts(allBets);
             updateTotalBet();
             clearBetTable();
+            updateHistory(resultData);
         }
 
         function clearBetTable() {
@@ -760,6 +782,20 @@
                 const chip = betArea.querySelector('.bet-chip');
                 if (chip) chip.remove();
             });
+        }
+
+        function updateHistory(resultData) {
+            history.push({ number: resultData.number, isBlack: resultData.isBlack });
+            if (history.length > 10) {
+                history.shift(); // Remove the oldest entry if more than 10
+            }
+            localStorage.setItem('history', JSON.stringify(history));
+            let historyHTML = '';
+            history.forEach(item => {
+                const className = item.isBlack ? 'black' : 'red';
+                historyHTML += `<span class="history-item ${className}">${item.number}</span> `;
+            });
+            historyDiv.innerHTML = historyHTML || 'No history yet';
         }
 
         document.querySelectorAll('.chip').forEach(chip => {
