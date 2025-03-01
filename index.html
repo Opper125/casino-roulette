@@ -136,6 +136,26 @@
             font-size: 6px;
             color: #000;
         }
+        .user-bet {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            font-size: 6px;
+            color: #00ff00;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2px;
+            border-radius: 3px;
+        }
+        .all-bet {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            font-size: 6px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2px;
+            border-radius: 3px;
+        }
         .bet-chips {
             display: flex;
             justify-content: center;
@@ -275,16 +295,6 @@
             transform: translateX(-50%);
             text-shadow: 0 0 5px #ffd700;
         }
-        .bet-area .player-count {
-            position: absolute;
-            bottom: 2px;
-            right: 2px;
-            font-size: 6px;
-            color: #fff;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 2px;
-            border-radius: 3px;
-        }
         .modal {
             position: fixed;
             top: 0;
@@ -409,11 +419,13 @@
         let balance = parseInt(localStorage.getItem(`${userId}_balance`) || '0');
         let totalBet = 0;
         let currentChip = null;
-        let bets = JSON.parse(localStorage.getItem('bets') || '{}');
+        let bets = JSON.parse(localStorage.getItem(`bets_${userId}`) || '{}');
+        let allBets = JSON.parse(localStorage.getItem('allBets') || '{}');
         let timeLeft = parseInt(localStorage.getItem('timeLeft') || '30');
         let gameState = localStorage.getItem('gameState') || 'betting';
         let usedTransactionIds = JSON.parse(localStorage.getItem(`${userId}_usedTransactionIds`) || '[]');
         let onlinePlayers = parseInt(localStorage.getItem('onlinePlayers') || '0');
+        let bonusSlots = JSON.parse(localStorage.getItem('bonusSlots') || '[]');
 
         const spinBtn = document.getElementById('spinBtn');
         const balanceValue = document.getElementById('balance-value');
@@ -441,6 +453,7 @@
             localStorage.setItem('pin', pin);
             localStorage.setItem(`${userId}_balance`, balance);
             localStorage.setItem(`${userId}_usedTransactionIds`, JSON.stringify(usedTransactionIds));
+            localStorage.setItem(`bets_${userId}`, JSON.stringify(bets));
             document.getElementById('loginModal').style.display = 'none';
             gameContainer.style.display = 'flex';
             loadInitialData();
@@ -451,27 +464,30 @@
         function loadInitialData() {
             balance = parseInt(localStorage.getItem(`${userId}_balance`) || '0');
             usedTransactionIds = JSON.parse(localStorage.getItem(`${userId}_usedTransactionIds`) || '[]');
-            bets = JSON.parse(localStorage.getItem('bets') || '{}');
+            bets = JSON.parse(localStorage.getItem(`bets_${userId}`) || '{}');
+            allBets = JSON.parse(localStorage.getItem('allBets') || '{}');
             gameState = localStorage.getItem('gameState') || 'betting';
             timeLeft = parseInt(localStorage.getItem('timeLeft') || '30');
             onlinePlayers = parseInt(localStorage.getItem('onlinePlayers') || '0');
+            bonusSlots = JSON.parse(localStorage.getItem('bonusSlots') || '[]');
             updateBalance();
             document.getElementById('online-players').innerHTML = `Online Players: ${onlinePlayers}`;
-            updateBetCounts(bets);
+            updateBetCounts(allBets);
             timer.innerHTML = `Time Left: ${timeLeft}s`;
         }
 
         // Sync Game State
         function syncGameState() {
             setInterval(() => {
-                const gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 1}');
+                const gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 1, "bonusSlots": []}');
                 gameState = gameData.state;
                 timeLeft = gameData.timeLeft;
-                bets = gameData.bets || {};
+                allBets = gameData.bets || {};
                 onlinePlayers = gameData.onlinePlayers || 1;
+                bonusSlots = gameData.bonusSlots || [];
                 timer.innerHTML = `Time Left: ${timeLeft}s`;
                 document.getElementById('online-players').innerHTML = `Online Players: ${onlinePlayers}`;
-                updateBetCounts(bets);
+                updateBetCounts(allBets);
                 if (gameState === 'betting' && timeLeft > 5) {
                     betTable.style.display = 'grid';
                     betChips.style.display = 'flex';
@@ -619,7 +635,11 @@
                 const div = document.createElement('div');
                 div.className = `bet-area ${area.class}`;
                 div.id = `bet-${area.id}`;
-                div.innerHTML = `${area.text}<span class="player-count" id="count-${area.id}">0</span>`;
+                div.innerHTML = `
+                    ${area.text}
+                    <span class="user-bet" id="user-bet-${area.id}">0</span>
+                    <span class="all-bet" id="all-bet-${area.id}">0</span>
+                `;
                 div.style.gridColumn = area.colSpan > 1 ? `span ${area.colSpan}` : 'auto';
                 div.onclick = () => placeBet(area.id);
                 betTable.appendChild(div);
@@ -627,14 +647,16 @@
         }
 
         function placeBet(areaId) {
-            if (gameState !== 'betting' || timeLeft <= 5 || !currentChip || balance < currentChip) return;
+            if (gameState !== 'betting' || timeLeft <= 7 || !currentChip || balance < currentChip) return;
             balance -= currentChip;
             updateBalance();
             bets[areaId] = (bets[areaId] || 0) + currentChip;
-            updateTotalBet();
-            const betData = { ...bets, [areaId]: { players: (bets[areaId]?.players || 0) + 1, total: bets[areaId] } };
-            localStorage.setItem('bets', JSON.stringify(betData));
-            updateBetCounts(betData);
+            allBets[areaId] = (allBets[areaId] || 0) + currentChip;
+            localStorage.setItem(`bets_${userId}`, JSON.stringify(bets));
+            const gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 1, "bonusSlots": []}');
+            gameData.bets = allBets;
+            localStorage.setItem('gameData', JSON.stringify(gameData));
+            updateBetCounts(allBets);
             const chipElement = document.createElement('div');
             chipElement.className = 'chip-animation';
             chipElement.textContent = currentChip >= 1000 ? `${currentChip/1000}K` : currentChip;
@@ -647,22 +669,32 @@
             document.body.appendChild(chipElement);
             setTimeout(() => {
                 chipElement.remove();
-                const existingChip = document.getElementById(`bet-${areaId}`).querySelector('.bet-chip');
-                if (existingChip) {
-                    existingChip.textContent = bets[areaId] >= 1000 ? `${bets[areaId]/1000}K` : bets[areaId];
-                } else {
-                    const betChip = document.createElement('div');
-                    betChip.className = 'bet-chip';
-                    betChip.textContent = bets[areaId] >= 1000 ? `${bets[areaId]/1000}K` : bets[areaId];
-                    document.getElementById(`bet-${areaId}`).appendChild(betChip);
-                }
             }, 1000);
         }
 
-        function updateBetCounts(betData) {
-            Object.keys(betData).forEach(areaId => {
-                const countEl = document.getElementById(`count-${areaId}`);
-                if (countEl) countEl.innerHTML = betData[areaId].players || 0;
+        function updateBetCounts(allBets) {
+            for (let i = 1; i <= 36; i++) {
+                const userBetEl = document.getElementById(`user-bet-${i}`);
+                const allBetEl = document.getElementById(`all-bet-${i}`);
+                if (userBetEl) userBetEl.innerHTML = bets[i] ? (bets[i] >= 1000 ? `${bets[i]/1000}K` : bets[i]) : '0';
+                if (allBetEl) allBetEl.innerHTML = allBets[i] ? (allBets[i] >= 1000 ? `${allBets[i]/1000}K` : allBets[i]) : '0';
+                const bonusEl = document.getElementById(`bet-${i}`).querySelector('.bonus-x');
+                if (bonusSlots.includes(i)) {
+                    if (!bonusEl) {
+                        const bonusX = document.createElement('span');
+                        bonusX.className = 'bonus-x';
+                        bonusX.innerHTML = `x${gameData.bonusSlots.find(slot => slot.number === i).bonus}`;
+                        document.getElementById(`bet-${i}`).appendChild(bonusX);
+                    }
+                } else if (bonusEl) {
+                    bonusEl.remove();
+                }
+            }
+            ['1-18', '19-36', 'odd', 'even', 'black', 'red', '1st12', '2nd12', '3rd12', 'col1', 'col2', 'col3'].forEach(area => {
+                const userBetEl = document.getElementById(`user-bet-${area}`);
+                const allBetEl = document.getElementById(`all-bet-${area}`);
+                if (userBetEl) userBetEl.innerHTML = bets[area] ? (bets[area] >= 1000 ? `${bets[area]/1000}K` : bets[area]) : '0';
+                if (allBetEl) allBetEl.innerHTML = allBets[area] ? (allBets[area] >= 1000 ? `${allBets[area]/1000}K` : allBets[area]) : '0';
             });
         }
 
@@ -682,9 +714,10 @@
             const number = resultData.number;
             let winnings = 0;
             let message = `🎲 ဘောလုံးရပ်သွားတဲ့ ဂဏန်း: ${number}<br>`;
+            const bonusMultiplier = bonusSlots.find(slot => slot.number === parseInt(number))?.bonus || 0;
             for (let area in bets) {
                 let multiplier = 0;
-                if (area === `${number}`) multiplier = 36 + (resultData.bonus || 0);
+                if (area === `${number}`) multiplier = 36 + bonusMultiplier;
                 else if (area === 'red' && resultData.isRed) multiplier = 2;
                 else if (area === 'black' && resultData.isBlack) multiplier = 2;
                 else if (area === 'odd' && resultData.isOdd) multiplier = 2;
@@ -703,9 +736,26 @@
             }
             result.innerHTML = message;
             bets = {};
+            allBets = {};
             totalBet = 0;
-            localStorage.setItem('bets', JSON.stringify(bets));
+            localStorage.setItem(`bets_${userId}`, JSON.stringify(bets));
+            localStorage.setItem('allBets', JSON.stringify(allBets));
+            updateBetCounts(allBets);
             updateTotalBet();
+            clearBetTable();
+        }
+
+        function clearBetTable() {
+            for (let i = 1; i <= 36; i++) {
+                const betArea = document.getElementById(`bet-${i}`);
+                const chip = betArea.querySelector('.bet-chip');
+                if (chip) chip.remove();
+            }
+            ['1-18', '19-36', 'odd', 'even', 'black', 'red', '1st12', '2nd12', '3rd12', 'col1', 'col2', 'col3'].forEach(area => {
+                const betArea = document.getElementById(`bet-${area}`);
+                const chip = betArea.querySelector('.bet-chip');
+                if (chip) chip.remove();
+            });
         }
 
         document.querySelectorAll('.chip').forEach(chip => {
