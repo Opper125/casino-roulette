@@ -65,74 +65,49 @@
         <div id="withdraw-requests"><h3>Withdraw Requests</h3></div>
     </div>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
-
     <script>
-        // Firebase Configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyAC0zvXE_Zv99c2RvMy3gpH5F4Is0Wm1oE",
-            authDomain: "cacino-roulette.firebaseapp.com",
-            databaseURL: "https://cacino-roulette-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "cacino-roulette",
-            storageBucket: "cacino-roulette.firebasestorage.app",
-            messagingSenderId: "794938085254",
-            appId: "1:794938085254:web:cd9438d783dc1fad7ae607",
-            measurementId: "G-WZWFMZD6N1"
-        };
-
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-
         const depositRequestsDiv = document.getElementById('deposit-requests');
         const withdrawRequestsDiv = document.getElementById('withdraw-requests');
         const stateSpan = document.getElementById('state');
         const timeLeftSpan = document.getElementById('timeLeft');
         const onlinePlayersDiv = document.getElementById('online-players');
 
+        let bonusSlots = [];
+
         // Game Server Logic
         function manageGameServer() {
-            db.ref('game').once('value', (snapshot) => {
-                let gameData = snapshot.val() || {
-                    state: 'betting',
-                    timeLeft: 30,
-                    bets: {},
-                    onlinePlayers: 0,
-                    bonusSlots: []
-                };
-                if (gameData.timeLeft > 0) {
-                    gameData.timeLeft--;
-                    if (gameData.state === 'betting' && gameData.timeLeft === 7) {
-                        gameData.bonusSlots = generateBonusSlots();
-                    }
-                } else {
-                    if (gameData.state === 'betting') {
-                        gameData.state = 'spinning';
-                        gameData.finalAngle = Math.floor(Math.random() * 360);
-                        gameData.timeLeft = 8;
-                    } else if (gameData.state === 'spinning') {
-                        gameData.result = checkBallPosition(gameData.finalAngle);
-                        gameData.state = 'result';
-                        gameData.timeLeft = 2;
-                        processWinnings(gameData.result);
-                    } else if (gameData.state === 'result') {
-                        gameData.state = 'betting';
-                        gameData.timeLeft = 30;
-                        gameData.bets = {};
-                        gameData.bonusSlots = [];
-                        delete gameData.finalAngle;
-                        delete gameData.result;
-                    }
+            let gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 0, "bonusSlots": [], "isRunning": true}');
+            if (gameData.timeLeft > 0) {
+                gameData.timeLeft--;
+                if (gameData.state === 'betting' && gameData.timeLeft === 7) {
+                    gameData.bonusSlots = generateBonusSlots();
+                    bonusSlots = gameData.bonusSlots;
                 }
-                gameData.onlinePlayers = Math.max(gameData.onlinePlayers, 1);
-                db.ref('game').set(gameData);
-                stateSpan.textContent = gameData.state;
-                timeLeftSpan.textContent = `${gameData.timeLeft}s`;
-                onlinePlayersDiv.textContent = `Online Players: ${gameData.onlinePlayers}`;
-            });
+            } else {
+                if (gameData.state === 'betting') {
+                    gameData.state = 'spinning';
+                    gameData.finalAngle = Math.floor(Math.random() * 360);
+                    gameData.timeLeft = 8;
+                } else if (gameData.state === 'spinning') {
+                    gameData.result = checkBallPosition(gameData.finalAngle);
+                    gameData.state = 'result';
+                    gameData.timeLeft = 2;
+                    processWinnings(gameData.result);
+                } else if (gameData.state === 'result') {
+                    gameData.state = 'betting';
+                    gameData.timeLeft = 30;
+                    gameData.bets = {};
+                    gameData.bonusSlots = [];
+                    delete gameData.finalAngle;
+                    delete gameData.result;
+                }
+            }
+            gameData.onlinePlayers = JSON.parse(localStorage.getItem('onlinePlayers') || '0');
+            gameData.isRunning = true;
+            localStorage.setItem('gameData', JSON.stringify(gameData));
+            stateSpan.textContent = gameData.state;
+            timeLeftSpan.textContent = `${gameData.timeLeft}s`;
+            onlinePlayersDiv.textContent = `Online Players: ${gameData.onlinePlayers}`;
         }
 
         function generateBonusSlots() {
@@ -168,46 +143,45 @@
         }
 
         function processWinnings(result) {
-            db.ref('game/bets').once('value', (snapshot) => {
-                const bets = snapshot.val() || {};
-                db.ref('users').once('value', (usersSnapshot) => {
-                    const users = usersSnapshot.val();
-                    Object.entries(bets).forEach(([area, amount]) => {
-                        let multiplier = 0;
-                        if (area === `${result.number}`) multiplier = 36 + (result.bonus || 0);
-                        else if (area === 'red' && result.isRed) multiplier = 2;
-                        else if (area === 'black' && result.isBlack) multiplier = 2;
-                        else if (area === 'odd' && result.isOdd) multiplier = 2;
-                        else if (area === 'even' && result.isEven) multiplier = 2;
-                        else if (area === '1-18' && result.isLow) multiplier = 2;
-                        else if (area === '19-36' && result.isHigh) multiplier = 2;
-                        else if (area === result.dozen) multiplier = 3;
-                        else if (area === result.column) multiplier = 3;
-                        if (multiplier > 0) {
-                            Object.keys(users).forEach(userId => {
-                                const userBet = users[userId].bets?.[area] || 0;
-                                if (userBet > 0) {
-                                    const winnings = userBet * multiplier;
-                                    db.ref(`users/${userId}`).update({
-                                        balance: firebase.database.ServerValue.increment(winnings),
-                                        bets: firebase.database.ServerValue.increment(-userBet)
-                                    });
-                                }
-                            });
+            const bets = JSON.parse(localStorage.getItem('allBets') || '{}');
+            const userInfo = JSON.parse(localStorage.getItem('userInfo') || '[]');
+            Object.entries(bets).forEach(([area, amount]) => {
+                let multiplier = 0;
+                if (area === `${result.number}`) multiplier = 36 + (result.bonus || 0);
+                else if (area === 'red' && result.isRed) multiplier = 2;
+                else if (area === 'black' && result.isBlack) multiplier = 2;
+                else if (area === 'odd' && result.isOdd) multiplier = 2;
+                else if (area === 'even' && result.isEven) multiplier = 2;
+                else if (area === '1-18' && result.isLow) multiplier = 2;
+                else if (area === '19-36' && result.isHigh) multiplier = 2;
+                else if (area === result.dozen) multiplier = 3;
+                else if (area === result.column) multiplier = 3;
+                if (multiplier > 0) {
+                    userInfo.forEach(user => {
+                        const userData = JSON.parse(localStorage.getItem('user_' + user.userId));
+                        const userBet = userData.bets?.[area] || 0;
+                        if (userBet > 0) {
+                            const winnings = userBet * multiplier;
+                            userData.balance += winnings;
+                            delete userData.bets[area];
+                            localStorage.setItem('user_' + user.userId, JSON.stringify(userData));
+                            user.balance = userData.balance;
                         }
                     });
-                });
+                }
             });
+            localStorage.setItem('userInfo', JSON.stringify(userInfo));
+            localStorage.setItem('allBets', '{}');
         }
 
         // Persistent Server Loop
         function startPersistentServer() {
-            setInterval(manageGameServer, 1000); // အမြဲလည်ပတ်အောင်
+            setInterval(manageGameServer, 1000);
         }
 
         function syncRequests() {
-            db.ref('requests').on('value', (snapshot) => {
-                const requests = snapshot.val() || {};
+            setInterval(() => {
+                const requests = JSON.parse(localStorage.getItem('requests') || '{}');
                 depositRequestsDiv.innerHTML = '<h3>Deposit Requests</h3>';
                 withdrawRequestsDiv.innerHTML = '<h3>Withdraw Requests</h3>';
                 Object.entries(requests).forEach(([id, req]) => {
@@ -236,42 +210,51 @@
                         }
                     }
                 });
-            });
+            }, 1000);
         }
 
         function approveRequest(id, type) {
-            db.ref('requests/' + id).once('value', (snapshot) => {
-                const req = snapshot.val();
-                if (req) {
-                    if (type === 'deposit') {
-                        db.ref('users/' + req.userId).update({
-                            balance: firebase.database.ServerValue.increment(req.amount)
-                        });
-                    }
-                    db.ref('requests/' + id).update({ status: 'approved' });
+            let requests = JSON.parse(localStorage.getItem('requests') || '{}');
+            const req = requests[id];
+            if (req) {
+                if (type === 'deposit') {
+                    const userData = JSON.parse(localStorage.getItem('user_' + req.userId));
+                    userData.balance += req.amount;
+                    localStorage.setItem('user_' + req.userId, JSON.stringify(userData));
+                    updateUserInfo(req.userId, userData);
                 }
-            });
+                req.status = 'approved';
+                localStorage.setItem('requests', JSON.stringify(requests));
+            }
         }
 
         function rejectRequest(id, type) {
-            db.ref('requests/' + id).once('value', (snapshot) => {
-                const req = snapshot.val();
-                if (req) {
-                    if (type === 'withdraw') {
-                        db.ref('users/' + req.userId).update({
-                            balance: firebase.database.ServerValue.increment(req.amount)
-                        });
-                    }
-                    db.ref('requests/' + id).update({ status: 'rejected' });
+            let requests = JSON.parse(localStorage.getItem('requests') || '{}');
+            const req = requests[id];
+            if (req) {
+                if (type === 'withdraw') {
+                    const userData = JSON.parse(localStorage.getItem('user_' + req.userId));
+                    userData.balance += req.amount;
+                    localStorage.setItem('user_' + req.userId, JSON.stringify(userData));
+                    updateUserInfo(req.userId, userData);
                 }
-            });
+                req.status = 'rejected';
+                localStorage.setItem('requests', JSON.stringify(requests));
+            }
         }
 
-        // Initialize (စကားဝှက်မလိုအောင် ဖယ်ထားတယ်)
-        firebase.auth().signInAnonymously().then(() => {
-            startPersistentServer();
-            syncRequests();
-        }).catch((error) => console.error("Auth Error:", error));
+        function updateUserInfo(userId, userData) {
+            let userInfo = JSON.parse(localStorage.getItem('userInfo') || '[]');
+            const existingUserIndex = userInfo.findIndex(u => u.userId === userId);
+            if (existingUserIndex !== -1) {
+                userInfo[existingUserIndex] = { userId, phone: userData.phone, balance: userData.balance };
+            }
+            localStorage.setItem('userInfo', JSON.stringify(userInfo));
+        }
+
+        // Initialize
+        startPersistentServer();
+        syncRequests();
     </script>
 </body>
 </html>
