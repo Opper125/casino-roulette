@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Casino Roulette</title>
     <style>
+        /* မူရင်း CSS အားလုံးကို ထည့်ထားပါတယ်။ */
         body {
             font-family: 'Arial', sans-serif;
             background: #1a1a1a;
@@ -65,9 +66,29 @@
         <div id="withdraw-requests"><h3>Withdraw Requests</h3></div>
     </div>
 
-    <script>
-        const ADMIN_PASSWORD = 'admin123'; // Change in production
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
 
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAC0zvXE_Zv99c2RvMy3gpH5F4Is0Wm1oE",
+            authDomain: "cacino-roulette.firebaseapp.com",
+            databaseURL: "https://cacino-roulette-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "cacino-roulette",
+            storageBucket: "cacino-roulette.firebasestorage.app",
+            messagingSenderId: "794938085254",
+            appId: "1:794938085254:web:cd9438d783dc1fad7ae607",
+            measurementId: "G-WZWFMZD6N1"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const ADMIN_PASSWORD = 'admin123'; // Production မှာ ပိုလုံခြုံအောင် ပြောင်းပါ
         const depositRequestsDiv = document.getElementById('deposit-requests');
         const withdrawRequestsDiv = document.getElementById('withdraw-requests');
         const stateSpan = document.getElementById('state');
@@ -76,8 +97,14 @@
 
         // Game Server Logic
         function manageGameServer() {
-            try {
-                let gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 0, "bonusSlots": []}');
+            db.ref('game').once('value', (snapshot) => {
+                let gameData = snapshot.val() || {
+                    state: 'betting',
+                    timeLeft: 30,
+                    bets: {},
+                    onlinePlayers: 0,
+                    bonusSlots: []
+                };
                 if (gameData.timeLeft > 0) {
                     gameData.timeLeft--;
                     if (gameData.state === 'betting' && gameData.timeLeft === 7) {
@@ -88,42 +115,26 @@
                         gameData.state = 'spinning';
                         gameData.finalAngle = Math.floor(Math.random() * 360);
                         gameData.timeLeft = 8;
-                        localStorage.setItem('gameData', JSON.stringify(gameData));
-                        setTimeout(() => {
-                            try {
-                                gameData.result = checkBallPosition(gameData.finalAngle);
-                                gameData.state = 'result';
-                                gameData.timeLeft = 2;
-                                localStorage.setItem('gameData', JSON.stringify(gameData));
-                                setTimeout(() => {
-                                    try {
-                                        gameData.state = 'betting';
-                                        gameData.timeLeft = 30;
-                                        gameData.bets = {};
-                                        gameData.bonusSlots = [];
-                                        delete gameData.finalAngle;
-                                        delete gameData.result;
-                                        localStorage.setItem('gameData', JSON.stringify(gameData));
-                                    } catch (e) {
-                                        console.error('Error resetting game state:', e);
-                                    }
-                                }, 2000);
-                            } catch (e) {
-                                console.error('Error in spinning timeout:', e);
-                            }
-                        }, 8000);
+                    } else if (gameData.state === 'spinning') {
+                        gameData.result = checkBallPosition(gameData.finalAngle);
+                        gameData.state = 'result';
+                        gameData.timeLeft = 2;
+                        processWinnings(gameData.result);
+                    } else if (gameData.state === 'result') {
+                        gameData.state = 'betting';
+                        gameData.timeLeft = 30;
+                        gameData.bets = {};
+                        gameData.bonusSlots = [];
+                        delete gameData.finalAngle;
+                        delete gameData.result;
                     }
                 }
-                gameData.onlinePlayers = Math.max(gameData.onlinePlayers, 1); // At least 1 player (Admin)
-                localStorage.setItem('gameData', JSON.stringify(gameData));
+                gameData.onlinePlayers = Math.max(gameData.onlinePlayers, 1);
+                db.ref('game').set(gameData);
                 stateSpan.textContent = gameData.state;
                 timeLeftSpan.textContent = `${gameData.timeLeft}s`;
                 onlinePlayersDiv.textContent = `Online Players: ${gameData.onlinePlayers}`;
-            } catch (e) {
-                console.error('Error in manageGameServer:', e);
-                stateSpan.textContent = 'Error';
-                timeLeftSpan.textContent = 'N/A';
-            }
+            });
         }
 
         function generateBonusSlots() {
@@ -142,7 +153,7 @@
             const anglePerNumber = 360 / 36;
             const index = Math.floor(finalAngle / anglePerNumber);
             const number = (index % 36) + 1;
-            const bonusData = JSON.parse(localStorage.getItem('gameData') || '{}').bonusSlots.find(slot => slot.number === number);
+            const bonusData = bonusSlots.find(slot => slot.number === number);
             const bonus = bonusData ? bonusData.bonus : 0;
             return {
                 number,
@@ -158,6 +169,39 @@
             };
         }
 
+        function processWinnings(result) {
+            db.ref('game/bets').once('value', (snapshot) => {
+                const bets = snapshot.val() || {};
+                db.ref('users').once('value', (usersSnapshot) => {
+                    const users = usersSnapshot.val();
+                    Object.entries(bets).forEach(([area, amount]) => {
+                        let multiplier = 0;
+                        if (area === `${result.number}`) multiplier = 36 + (result.bonus || 0);
+                        else if (area === 'red' && result.isRed) multiplier = 2;
+                        else if (area === 'black' && result.isBlack) multiplier = 2;
+                        else if (area === 'odd' && result.isOdd) multiplier = 2;
+                        else if (area === 'even' && result.isEven) multiplier = 2;
+                        else if (area === '1-18' && result.isLow) multiplier = 2;
+                        else if (area === '19-36' && result.isHigh) multiplier = 2;
+                        else if (area === result.dozen) multiplier = 3;
+                        else if (area === result.column) multiplier = 3;
+                        if (multiplier > 0) {
+                            Object.keys(users).forEach(userId => {
+                                const userBet = users[userId].bets?.[area] || 0;
+                                if (userBet > 0) {
+                                    const winnings = userBet * multiplier;
+                                    db.ref(`users/${userId}`).update({
+                                        balance: firebase.database.ServerValue.increment(winnings),
+                                        bets: firebase.database.ServerValue.increment(-userBet)
+                                    });
+                                }
+                            });
+                        }
+                    });
+                });
+            });
+        }
+
         // Persistent Server Loop
         function startPersistentServer() {
             setInterval(manageGameServer, 1000); // Run server continuously
@@ -169,82 +213,72 @@
                 alert('Password မမှန်ပါ!');
                 return;
             }
-            startPersistentServer();
-            setInterval(() => {
-                try {
-                    const requests = JSON.parse(localStorage.getItem('requests') || '{}');
-                    depositRequestsDiv.innerHTML = '<h3>Deposit Requests</h3>';
-                    withdrawRequestsDiv.innerHTML = '<h3>Withdraw Requests</h3>';
-                    Object.entries(requests).forEach(([id, req]) => {
-                        if (req.status === 'pending') {
-                            if (req.type === 'deposit') {
-                                const div = document.createElement('div');
-                                div.className = 'request';
-                                div.innerHTML = `
-                                    User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
-                                    Amount: ${req.amount} MMK<br>
-                                    Transaction ID: ${req.transactionId}<br>
-                                    <button onclick="approveRequest('${id}', 'deposit')">✅ လက်ခံ</button>
-                                    <button onclick="rejectRequest('${id}', 'deposit')">❌ ငြင်းပယ်</button>
-                                `;
-                                depositRequestsDiv.appendChild(div);
-                            } else if (req.type === 'withdraw') {
-                                const div = document.createElement('div');
-                                div.className = 'request';
-                                div.innerHTML = `
-                                    User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
-                                    Amount: ${req.amount} MMK<br>
-                                    Method: ${req.method}<br>
-                                    Phone: ${req.phone}<br>
-                                    <button onclick="approveRequest('${id}', 'withdraw')">✅ လက်ခံ</button>
-                                    <button onclick="rejectRequest('${id}', 'withdraw')">❌ ငြင်းပယ်</button>
-                                `;
-                                withdrawRequestsDiv.appendChild(div);
-                            }
+            firebase.auth().signInAnonymously().then(() => {
+                startPersistentServer();
+                syncRequests();
+            });
+        }
+
+        function syncRequests() {
+            db.ref('requests').on('value', (snapshot) => {
+                const requests = snapshot.val() || {};
+                depositRequestsDiv.innerHTML = '<h3>Deposit Requests</h3>';
+                withdrawRequestsDiv.innerHTML = '<h3>Withdraw Requests</h3>';
+                Object.entries(requests).forEach(([id, req]) => {
+                    if (req.status === 'pending') {
+                        const div = document.createElement('div');
+                        div.className = 'request';
+                        if (req.type === 'deposit') {
+                            div.innerHTML = `
+                                User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
+                                Amount: ${req.amount} MMK<br>
+                                Transaction ID: ${req.transactionId}<br>
+                                <button onclick="approveRequest('${id}', 'deposit')">✅ လက်ခံ</button>
+                                <button onclick="rejectRequest('${id}', 'deposit')">❌ ငြင်းပယ်</button>
+                            `;
+                            depositRequestsDiv.appendChild(div);
+                        } else if (req.type === 'withdraw') {
+                            div.innerHTML = `
+                                User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
+                                Amount: ${req.amount} MMK<br>
+                                Method: ${req.method}<br>
+                                Phone: ${req.phone}<br>
+                                <button onclick="approveRequest('${id}', 'withdraw')">✅ လက်ခံ</button>
+                                <button onclick="rejectRequest('${id}', 'withdraw')">❌ ငြင်းပယ်</button>
+                            `;
+                            withdrawRequestsDiv.appendChild(div);
                         }
-                    });
-                } catch (e) {
-                    console.error('Error loading requests:', e);
-                    depositRequestsDiv.innerHTML = '<h3>Error loading deposit requests</h3>';
-                    withdrawRequestsDiv.innerHTML = '<h3>Error loading withdraw requests</h3>';
-                }
-            }, 1000);
+                    }
+                });
+            });
         }
 
         function approveRequest(id, type) {
-            try {
-                const requests = JSON.parse(localStorage.getItem('requests') || '{}');
-                if (requests[id]) {
-                    requests[id].status = 'approved';
-                    const userId = requests[id].userId;
-                    const amount = requests[id].amount;
+            db.ref('requests/' + id).once('value', (snapshot) => {
+                const req = snapshot.val();
+                if (req) {
                     if (type === 'deposit') {
-                        const userBalance = parseInt(localStorage.getItem(`${userId}_balance`) || '0') + amount;
-                        localStorage.setItem(`${userId}_balance`, userBalance);
+                        db.ref('users/' + req.userId).update({
+                            balance: firebase.database.ServerValue.increment(req.amount)
+                        });
                     }
-                    localStorage.setItem('requests', JSON.stringify(requests));
+                    db.ref('requests/' + id).update({ status: 'approved' });
                 }
-            } catch (e) {
-                console.error('Error approving request:', e);
-            }
+            });
         }
 
         function rejectRequest(id, type) {
-            try {
-                const requests = JSON.parse(localStorage.getItem('requests') || '{}');
-                if (requests[id]) {
-                    requests[id].status = 'rejected';
-                    const userId = requests[id].userId;
-                    const amount = requests[id].amount;
+            db.ref('requests/' + id).once('value', (snapshot) => {
+                const req = snapshot.val();
+                if (req) {
                     if (type === 'withdraw') {
-                        const userBalance = parseInt(localStorage.getItem(`${userId}_balance`) || '0') + amount;
-                        localStorage.setItem(`${userId}_balance`, userBalance);
+                        db.ref('users/' + req.userId).update({
+                            balance: firebase.database.ServerValue.increment(req.amount)
+                        });
                     }
-                    localStorage.setItem('requests', JSON.stringify(requests));
+                    db.ref('requests/' + id).update({ status: 'rejected' });
                 }
-            } catch (e) {
-                console.error('Error rejecting request:', e);
-            }
+            });
         }
 
         // Initialize
