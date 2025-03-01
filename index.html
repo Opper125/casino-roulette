@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Casino Roulette - Game Zone Myanmar</title>
     <style>
+        /* မူရင်း CSS အားလုံးကို ထည့်ထားပါတယ်။ ပြောင်းလဲမှု မလိုအပ်ပါ။ */
         body {
             font-family: 'Arial', sans-serif;
             background: #1a1a1a;
@@ -433,11 +434,31 @@
         </div>
     </div>
 
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
+
     <script>
-        let userId = localStorage.getItem('userId');
-        let phone = localStorage.getItem('phone');
-        let pin = localStorage.getItem('pin');
-        let balance = parseInt(localStorage.getItem(`${userId}_balance`) || '0');
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAC0zvXE_Zv99c2RvMy3gpH5F4Is0Wm1oE",
+            authDomain: "cacino-roulette.firebaseapp.com",
+            databaseURL: "https://cacino-roulette-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "cacino-roulette",
+            storageBucket: "cacino-roulette.firebasestorage.app",
+            messagingSenderId: "794938085254",
+            appId: "1:794938085254:web:cd9438d783dc1fad7ae607",
+            measurementId: "G-WZWFMZD6N1"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let userId = null;
+        let phone = null;
+        let balance = 0;
         let totalBet = 0;
         let currentChip = null;
         let bets = {};
@@ -459,54 +480,6 @@
         const gameContainer = document.getElementById('gameContainer');
         const historyDiv = document.getElementById('history');
 
-        // Load Data from Local Storage with Error Handling
-        function loadData() {
-            try {
-                balance = parseInt(localStorage.getItem(`${userId}_balance`) || '0');
-                usedTransactionIds = JSON.parse(localStorage.getItem(`${userId}_usedTransactionIds`) || '[]');
-                bets = JSON.parse(localStorage.getItem(`bets_${userId}`) || '{}');
-                allBets = JSON.parse(localStorage.getItem('allBets') || '{}');
-                const gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 0, "bonusSlots": []}');
-                gameState = gameData.state || 'betting';
-                timeLeft = gameData.timeLeft || 30;
-                onlinePlayers = gameData.onlinePlayers || 0;
-                bonusSlots = gameData.bonusSlots || [];
-                history = JSON.parse(localStorage.getItem('history') || '[]');
-            } catch (e) {
-                console.error('Error loading data from Local Storage:', e);
-                resetData();
-            }
-        }
-
-        // Reset Data to Default if Error Occurs
-        function resetData() {
-            balance = 0;
-            usedTransactionIds = [];
-            bets = {};
-            allBets = {};
-            gameState = 'betting';
-            timeLeft = 30;
-            onlinePlayers = 0;
-            bonusSlots = [];
-            history = [];
-            saveData();
-        }
-
-        // Save Data to Local Storage with Error Handling
-        function saveData() {
-            try {
-                localStorage.setItem(`${userId}_balance`, balance);
-                localStorage.setItem(`${userId}_usedTransactionIds`, JSON.stringify(usedTransactionIds));
-                localStorage.setItem(`bets_${userId}`, JSON.stringify(bets));
-                localStorage.setItem('allBets', JSON.stringify(allBets));
-                localStorage.setItem('history', JSON.stringify(history));
-                const gameData = { state: gameState, timeLeft, bets: allBets, onlinePlayers, bonusSlots };
-                localStorage.setItem('gameData', JSON.stringify(gameData));
-            } catch (e) {
-                console.error('Error saving data to Local Storage:', e);
-            }
-        }
-
         // Login Function
         function login() {
             const inputPhone = document.getElementById('phone').value;
@@ -516,18 +489,36 @@
                 return;
             }
             phone = inputPhone;
-            pin = inputPin;
-            userId = btoa(phone + pin); // Anonymous ID
-            localStorage.setItem('userId', userId);
-            localStorage.setItem('phone', phone);
-            localStorage.setItem('pin', pin);
-            loadData();
-            onlinePlayers++;
-            saveData();
-            document.getElementById('loginModal').style.display = 'none';
-            gameContainer.style.display = 'flex';
-            updateUI();
-            syncGameState();
+            userId = btoa(phone + inputPin);
+            firebase.auth().signInAnonymously().then(() => {
+                db.ref('users/' + userId).once('value').then((snapshot) => {
+                    if (!snapshot.exists()) {
+                        db.ref('users/' + userId).set({
+                            phone: phone,
+                            balance: 0,
+                            createdAt: firebase.database.ServerValue.TIMESTAMP
+                        });
+                    }
+                    loadUserData();
+                    document.getElementById('loginModal').style.display = 'none';
+                    gameContainer.style.display = 'flex';
+                    syncGameState();
+                });
+            }).catch((error) => {
+                console.error("Auth Error:", error);
+                result.innerHTML = "❌ အကောင့်ဝင်ရောက်မှု မအောင်မြင်ပါ!";
+            });
+        }
+
+        // Load User Data from Firebase
+        function loadUserData() {
+            db.ref('users/' + userId).on('value', (snapshot) => {
+                const data = snapshot.val();
+                balance = data.balance || 0;
+                usedTransactionIds = data.usedTransactionIds || [];
+                bets = data.bets || {};
+                updateBalance();
+            });
         }
 
         // Update UI
@@ -537,18 +528,25 @@
             updateBetCounts(allBets);
             updateHistory();
             timer.innerHTML = `Time Left: ${timeLeft}s`;
+            if (gameState === 'betting' && timeLeft > 7) {
+                betTable.style.display = 'grid';
+                betChips.style.display = 'flex';
+                roulette.style.display = 'none';
+                result.innerHTML = "🎲 Chip ရွေးပြီး Bet တင်ပါ!";
+            } else if (gameState === 'betting' && timeLeft <= 7) {
+                betTable.style.display = 'none';
+                betChips.style.display = 'none';
+                result.innerHTML = "⏳ Betting ပိတ်တော့မည်!";
+            }
         }
 
-        // Sync Game State
+        // Sync Game State with Firebase
         function syncGameState() {
-            setInterval(() => {
+            db.ref('game').on('value', (snapshot) => {
                 try {
-                    const gameData = JSON.parse(localStorage.getItem('gameData') || '{}');
-                    if (!gameData.state) {
+                    const gameData = snapshot.val();
+                    if (!gameData) {
                         result.innerHTML = "⏳ Admin ဖွင့်ရန် စောင့်ပါ...";
-                        betTable.style.display = 'none';
-                        betChips.style.display = 'none';
-                        roulette.style.display = 'none';
                         return;
                     }
                     gameState = gameData.state;
@@ -556,28 +554,14 @@
                     allBets = gameData.bets || {};
                     onlinePlayers = gameData.onlinePlayers || 0;
                     bonusSlots = gameData.bonusSlots || [];
-                    timer.innerHTML = `Time Left: ${timeLeft}s`;
-                    document.getElementById('online-players').innerHTML = `Online Players: ${onlinePlayers}`;
-                    updateBetCounts(allBets);
-                    if (gameState === 'betting' && timeLeft > 7) {
-                        betTable.style.display = 'grid';
-                        betChips.style.display = 'flex';
-                        roulette.style.display = 'none';
-                        result.innerHTML = "🎲 Chip ရွေးပြီး Bet တင်ပါ!";
-                    } else if (gameState === 'betting' && timeLeft <= 7) {
-                        betTable.style.display = 'none';
-                        betChips.style.display = 'none';
-                        result.innerHTML = "⏳ Betting ပိတ်တော့မည်!";
-                    } else if (gameState === 'spinning') {
-                        spinWheel(gameData.finalAngle);
-                    } else if (gameState === 'result') {
-                        showResult(gameData.result);
-                    }
+                    updateUI();
+                    if (gameState === 'spinning') spinWheel(gameData.finalAngle);
+                    else if (gameState === 'result') showResult(gameData.result);
                 } catch (e) {
                     console.error('Error syncing game state:', e);
-                    result.innerHTML = "❌ ဂိမ်းအလုပ်မလုပ်ပါ။ Admin ဖွင့်ကြည့်ပါ။";
+                    result.innerHTML = "❌ ဂိမ်းချိတ်ဆက်မှု ပြဿနာရှိနေပါတယ်။";
                 }
-            }, 1000);
+            });
         }
 
         function setupRoulette() {
@@ -599,7 +583,7 @@
         function updateBalance(amount = 0) {
             if (amount !== 0) {
                 balance += amount;
-                saveData();
+                db.ref('users/' + userId).update({ balance: balance });
             }
             balanceValue.innerHTML = balance;
             document.getElementById('balance').innerHTML = `Balance: <span id="balance-value">${balance}</span> MMK`;
@@ -617,23 +601,21 @@
             const amount = parseInt(document.getElementById('deposit-amount').value);
             const transactionId = document.getElementById('transaction-id').value;
             if (!amount || amount < 100 || !transactionId || transactionId.length !== 6 || usedTransactionIds.includes(transactionId)) {
-                result.innerHTML = "❌ ငွေပမာဏ သို့မဟုတ် Transaction ID မမှန်ကန်ပါ!";
+                result.innerHTML = "❌ ငွေပမာဏ သို့မဟုတ် Transaction ID မမှန်ပါ!";
                 return;
             }
             usedTransactionIds.push(transactionId);
-            saveData();
+            db.ref('users/' + userId).update({ usedTransactionIds });
             const requestId = `${userId}_${Date.now()}`;
-            let requests = JSON.parse(localStorage.getItem('requests') || '{}');
-            requests[requestId] = { 
-                userId, 
-                amount, 
-                transactionId, 
-                phone, 
-                type: 'deposit', 
-                status: 'pending', 
-                timestamp: Date.now() 
-            };
-            localStorage.setItem('requests', JSON.stringify(requests));
+            db.ref('requests/' + requestId).set({
+                userId,
+                amount,
+                transactionId,
+                phone,
+                type: 'deposit',
+                status: 'pending',
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
             result.innerHTML = "⏳ Deposit တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
             closeModal('depositModal');
             checkRequestStatus(requestId, 'deposit');
@@ -649,17 +631,15 @@
             }
             updateBalance(-amount);
             const requestId = `${userId}_${Date.now()}`;
-            let requests = JSON.parse(localStorage.getItem('requests') || '{}');
-            requests[requestId] = { 
-                userId, 
-                amount, 
-                method, 
-                phone: phoneWithdraw, 
-                type: 'withdraw', 
-                status: 'pending', 
-                timestamp: Date.now() 
-            };
-            localStorage.setItem('requests', JSON.stringify(requests));
+            db.ref('requests/' + requestId).set({
+                userId,
+                amount,
+                method,
+                phone: phoneWithdraw,
+                type: 'withdraw',
+                status: 'pending',
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
             result.innerHTML = "⏳ Withdraw တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
             closeModal('withdrawModal');
             checkRequestStatus(requestId, 'withdraw');
@@ -667,24 +647,19 @@
 
         function checkRequestStatus(requestId, type) {
             const interval = setInterval(() => {
-                try {
-                    const requests = JSON.parse(localStorage.getItem('requests') || '{}');
-                    if (requests[requestId] && requests[requestId].status !== 'pending') {
+                db.ref('requests/' + requestId).once('value', (snapshot) => {
+                    const req = snapshot.val();
+                    if (req && req.status !== 'pending') {
                         clearInterval(interval);
-                        if (requests[requestId].status === 'approved') {
-                            if (type === 'deposit') {
-                                updateBalance(requests[requestId].amount);
-                            }
+                        if (req.status === 'approved') {
+                            if (type === 'deposit') updateBalance(req.amount);
                             result.innerHTML = `✅ ${type === 'deposit' ? 'Deposit' : 'Withdraw'} အောင်မြင်ပါပြီ!`;
                         } else {
-                            if (type === 'withdraw') updateBalance(requests[requestId].amount);
+                            if (type === 'withdraw') updateBalance(req.amount);
                             result.innerHTML = `❌ ${type === 'deposit' ? 'Deposit' : 'Withdraw'} ပယ်ချခံရပါတယ်!`;
                         }
                     }
-                } catch (e) {
-                    console.error('Error checking request status:', e);
-                    clearInterval(interval);
-                }
+                });
             }, 1000);
         }
 
@@ -727,17 +702,9 @@
         function placeBet(areaId) {
             if (gameState !== 'betting' || timeLeft <= 7 || !currentChip || balance < currentChip) return;
             balance -= currentChip;
-            updateBalance();
             bets[areaId] = (bets[areaId] || 0) + currentChip;
-            allBets[areaId] = (allBets[areaId] || 0) + currentChip;
-            saveData();
-            try {
-                const gameData = JSON.parse(localStorage.getItem('gameData') || '{}');
-                gameData.bets = allBets;
-                localStorage.setItem('gameData', JSON.stringify(gameData));
-            } catch (e) {
-                console.error('Error updating game data in placeBet:', e);
-            }
+            db.ref('users/' + userId).update({ balance, bets });
+            db.ref('game/bets/' + areaId).transaction((current) => (current || 0) + currentChip);
             updateBetCounts(allBets);
             const chipElement = document.createElement('div');
             chipElement.className = 'chip-animation';
@@ -749,9 +716,7 @@
             chipElement.style.setProperty('--target-x', `${targetPos.left - balancePos.left}px`);
             chipElement.style.setProperty('--target-y', `${targetPos.top - balancePos.top}px`);
             document.body.appendChild(chipElement);
-            setTimeout(() => {
-                chipElement.remove();
-            }, 1000);
+            setTimeout(() => chipElement.remove(), 1000);
         }
 
         function updateBetCounts(allBets) {
@@ -768,9 +733,7 @@
                         bonusX.innerHTML = `x${bonusSlots.find(slot => slot.number === i).bonus}`;
                         document.getElementById(`bet-${i}`).appendChild(bonusX);
                     }
-                } else if (bonusEl) {
-                    bonusEl.remove();
-                }
+                } else if (bonusEl) bonusEl.remove();
             }
             ['1-18', '19-36', 'odd', 'even', 'black', 'red', '1st12', '2nd12', '3rd12', 'col1', 'col2', 'col3'].forEach(area => {
                 const userBetEl = document.getElementById(`user-bet-${area}`);
@@ -792,46 +755,36 @@
         }
 
         function showResult(resultData) {
-            try {
-                const number = resultData.number;
-                let winnings = 0;
-                let message = `🎲 ဘောလုံးရပ်သွားတဲ့ ဂဏန်း: ${number}<br>`;
-                const bonusMultiplier = bonusSlots.find(slot => slot.number === parseInt(number))?.bonus || 0;
-                for (let area in bets) {
-                    let multiplier = 0;
-                    if (area === `${number}`) multiplier = 36 + bonusMultiplier;
-                    else if (area === 'red' && resultData.isRed) multiplier = 2;
-                    else if (area === 'black' && resultData.isBlack) multiplier = 2;
-                    else if (area === 'odd' && resultData.isOdd) multiplier = 2;
-                    else if (area === 'even' && resultData.isEven) multiplier = 2;
-                    else if (area === '1-18' && resultData.isLow) multiplier = 2;
-                    else if (area === '19-36' && resultData.isHigh) multiplier = 2;
-                    else if (area === resultData.dozen) multiplier = 3;
-                    else if (area === resultData.column) multiplier = 3;
-                    if (multiplier > 0) winnings += bets[area] * multiplier;
-                }
-                if (winnings > 0) {
-                    message += `🎉 အနိုင်ရရှိပါတယ်! ${winnings} MMK`;
-                    updateBalance(winnings);
-                } else {
-                    message += "😢 အရှုံးပါ။ ထပ်ကြိုးစားပါ!";
-                }
-                result.innerHTML = message;
-                bets = {};
-                allBets = {};
-                totalBet = 0;
-                saveData();
-                const gameData = JSON.parse(localStorage.getItem('gameData') || '{}');
-                gameData.bets = allBets;
-                localStorage.setItem('gameData', JSON.stringify(gameData));
-                updateBetCounts(allBets);
-                updateTotalBet();
-                clearBetTable();
-                updateHistory(resultData);
-            } catch (e) {
-                console.error('Error in showResult:', e);
-                result.innerHTML = "❌ ရလဒ်ပြသမှု မအောင်မြင်ပါ။";
+            const number = resultData.number;
+            let winnings = 0;
+            let message = `🎲 ဘောလုံးရပ်သွားတဲ့ ဂဏန်း: ${number}<br>`;
+            const bonusMultiplier = bonusSlots.find(slot => slot.number === parseInt(number))?.bonus || 0;
+            for (let area in bets) {
+                let multiplier = 0;
+                if (area === `${number}`) multiplier = 36 + bonusMultiplier;
+                else if (area === 'red' && resultData.isRed) multiplier = 2;
+                else if (area === 'black' && resultData.isBlack) multiplier = 2;
+                else if (area === 'odd' && resultData.isOdd) multiplier = 2;
+                else if (area === 'even' && resultData.isEven) multiplier = 2;
+                else if (area === '1-18' && resultData.isLow) multiplier = 2;
+                else if (area === '19-36' && resultData.isHigh) multiplier = 2;
+                else if (area === resultData.dozen) multiplier = 3;
+                else if (area === resultData.column) multiplier = 3;
+                if (multiplier > 0) winnings += bets[area] * multiplier;
             }
+            if (winnings > 0) {
+                message += `🎉 အနိုင်ရရှိပါတယ်! ${winnings} MMK`;
+                updateBalance(winnings);
+            } else {
+                message += "😢 အရှုံးပါ။ ထပ်ကြိုးစားပါ!";
+            }
+            result.innerHTML = message;
+            bets = {};
+            db.ref('users/' + userId).update({ bets });
+            updateBetCounts(allBets);
+            updateTotalBet();
+            clearBetTable();
+            updateHistory(resultData);
         }
 
         function clearBetTable() {
@@ -848,22 +801,15 @@
         }
 
         function updateHistory(resultData) {
-            try {
-                history.push({ number: resultData.number, isBlack: resultData.isBlack });
-                if (history.length > 10) {
-                    history.shift();
-                }
-                localStorage.setItem('history', JSON.stringify(history));
-                let historyHTML = '';
-                history.forEach(item => {
-                    const className = item.isBlack ? 'black' : 'red';
-                    historyHTML += `<span class="history-item ${className}">${item.number}</span> `;
-                });
-                historyDiv.innerHTML = historyHTML || 'No history yet';
-            } catch (e) {
-                console.error('Error updating history:', e);
-                historyDiv.innerHTML = 'Error loading history';
-            }
+            history.push({ number: resultData.number, isBlack: resultData.isBlack });
+            if (history.length > 10) history.shift();
+            db.ref('users/' + userId).update({ history });
+            let historyHTML = '';
+            history.forEach(item => {
+                const className = item.isBlack ? 'black' : 'red';
+                historyHTML += `<span class="history-item ${className}">${item.number}</span> `;
+            });
+            historyDiv.innerHTML = historyHTML || 'No history yet';
         }
 
         document.querySelectorAll('.chip').forEach(chip => {
@@ -879,11 +825,12 @@
         }
 
         // Initialize
-        if (userId && phone && pin) {
+        if (localStorage.getItem('userId') && localStorage.getItem('phone')) {
+            userId = localStorage.getItem('userId');
+            phone = localStorage.getItem('phone');
             document.getElementById('loginModal').style.display = 'none';
             gameContainer.style.display = 'flex';
-            loadData();
-            updateUI();
+            loadUserData();
             syncGameState();
         } else {
             result.innerHTML = "🎮 အကောင့်ဖွင့်ရန် ဖုန်းနံပတ်နှင့် PIN ထည့်ပါ!";
