@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Casino Roulette</title>
     <style>
-        /* မူရင်း CSS အားလုံးကို ထည့်ထားပါတယ်။ */
         body {
             font-family: 'Arial', sans-serif;
             background: #1a1a1a;
@@ -88,7 +87,6 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        const ADMIN_PASSWORD = 'admin123'; // Production မှာ ပိုလုံခြုံအောင် ပြောင်းပါ
         const depositRequestsDiv = document.getElementById('deposit-requests');
         const withdrawRequestsDiv = document.getElementById('withdraw-requests');
         const stateSpan = document.getElementById('state');
@@ -138,14 +136,14 @@
         }
 
         function generateBonusSlots() {
-            const bonusCount = Math.floor(Math.random() * 3) + 1; // 1-3 slots
+            const bonusCount = Math.floor(Math.random() * 3) + 1;
             const bonusNumbers = new Set();
             while (bonusNumbers.size < bonusCount) {
                 bonusNumbers.add(Math.floor(Math.random() * 36) + 1);
             }
             return Array.from(bonusNumbers).map(num => ({
                 number: num,
-                bonus: Math.floor(Math.random() * 451) + 50 // Bonus X (50-500)
+                bonus: Math.floor(Math.random() * 451) + 50
             }));
         }
 
@@ -204,19 +202,7 @@
 
         // Persistent Server Loop
         function startPersistentServer() {
-            setInterval(manageGameServer, 1000); // Run server continuously
-        }
-
-        function loadRequests() {
-            const password = prompt('Admin Password ထည့်ပါ:');
-            if (password !== ADMIN_PASSWORD) {
-                alert('Password မမှန်ပါ!');
-                return;
-            }
-            firebase.auth().signInAnonymously().then(() => {
-                startPersistentServer();
-                syncRequests();
-            });
+            setInterval(manageGameServer, 1000); // အမြဲလည်ပတ်အောင်
         }
 
         function syncRequests() {
@@ -281,8 +267,11 @@
             });
         }
 
-        // Initialize
-        loadRequests();
+        // Initialize (စကားဝှက်မလိုအောင် ဖယ်ထားတယ်)
+        firebase.auth().signInAnonymously().then(() => {
+            startPersistentServer();
+            syncRequests();
+        }).catch((error) => console.error("Auth Error:", error));
     </script>
 </body>
 </html>
