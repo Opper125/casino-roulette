@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Info - Casino Roulette</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #1a1a1a;
+            color: #ffd700;
+            margin: 0;
+            padding: 20px;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: rgba(30, 30, 30, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+            text-align: center;
+        }
+        h1 {
+            text-align: center;
+            text-shadow: 0 0 10px #ffd700;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ffd700;
+        }
+        th {
+            background: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>👤 ကစားသူ အချက်အလက်များ</h1>
+        <table id="userTable">
+            <thead>
+                <tr>
+                    <th>User ID</th>
+                    <th>ဖုန်းနံပတ်</th>
+                    <th>လက်ကျန်ငွေ (MMK)</th>
+                </tr>
+            </thead>
+            <tbody id="userList"></tbody>
+        </table>
+    </div>
+
+    <script>
+        function updateUserInfo() {
+            const userInfo = JSON.parse(localStorage.getItem('userInfo') || '[]');
+            const userList = document.getElementById('userList');
+            userList.innerHTML = '';
+            userInfo.forEach(user => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${user.userId.substr(0, 8)}...</td>
+                    <td>${user.phone}</td>
+                    <td>${user.balance}</td>
+                `;
+                userList.appendChild(row);
+            });
+        }
+
+        // Real-time Update
+        setInterval(updateUserInfo, 1000);
+
+        // Initialize
+        updateUserInfo();
+    </script>
+</body>
+</html>
