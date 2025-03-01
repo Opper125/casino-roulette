@@ -76,54 +76,41 @@
 
         // Game Server Logic
         function manageGameServer() {
-            try {
-                let gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 0, "bonusSlots": []}');
-                if (gameData.timeLeft > 0) {
-                    gameData.timeLeft--;
-                    if (gameData.state === 'betting' && gameData.timeLeft === 7) {
-                        gameData.bonusSlots = generateBonusSlots();
-                    }
-                } else {
-                    if (gameData.state === 'betting') {
-                        gameData.state = 'spinning';
-                        gameData.finalAngle = Math.floor(Math.random() * 360);
-                        gameData.timeLeft = 8;
+            let gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 0, "bonusSlots": []}');
+            if (gameData.timeLeft > 0) {
+                gameData.timeLeft--;
+                if (gameData.state === 'betting' && gameData.timeLeft === 7) {
+                    gameData.bonusSlots = generateBonusSlots();
+                    localStorage.setItem('gameData', JSON.stringify(gameData));
+                }
+            } else {
+                if (gameData.state === 'betting') {
+                    gameData.state = 'spinning';
+                    gameData.finalAngle = Math.floor(Math.random() * 360);
+                    gameData.timeLeft = 8;
+                    localStorage.setItem('gameData', JSON.stringify(gameData));
+                    setTimeout(() => {
+                        gameData.result = checkBallPosition(gameData.finalAngle);
+                        gameData.state = 'result';
+                        gameData.timeLeft = 2;
                         localStorage.setItem('gameData', JSON.stringify(gameData));
                         setTimeout(() => {
-                            try {
-                                gameData.result = checkBallPosition(gameData.finalAngle);
-                                gameData.state = 'result';
-                                gameData.timeLeft = 2;
-                                localStorage.setItem('gameData', JSON.stringify(gameData));
-                                setTimeout(() => {
-                                    try {
-                                        gameData.state = 'betting';
-                                        gameData.timeLeft = 30;
-                                        gameData.bets = {};
-                                        gameData.bonusSlots = [];
-                                        delete gameData.finalAngle;
-                                        delete gameData.result;
-                                        localStorage.setItem('gameData', JSON.stringify(gameData));
-                                    } catch (e) {
-                                        console.error('Error resetting game state:', e);
-                                    }
-                                }, 2000);
-                            } catch (e) {
-                                console.error('Error in spinning timeout:', e);
-                            }
-                        }, 8000);
-                    }
+                            gameData.state = 'betting';
+                            gameData.timeLeft = 30;
+                            gameData.bets = {};
+                            gameData.bonusSlots = [];
+                            delete gameData.finalAngle;
+                            delete gameData.result;
+                            localStorage.setItem('gameData', JSON.stringify(gameData));
+                        }, 2000);
+                    }, 8000);
                 }
-                gameData.onlinePlayers = Math.max(gameData.onlinePlayers, 1); // At least 1 player (Admin)
-                localStorage.setItem('gameData', JSON.stringify(gameData));
-                stateSpan.textContent = gameData.state;
-                timeLeftSpan.textContent = `${gameData.timeLeft}s`;
-                onlinePlayersDiv.textContent = `Online Players: ${gameData.onlinePlayers}`;
-            } catch (e) {
-                console.error('Error in manageGameServer:', e);
-                stateSpan.textContent = 'Error';
-                timeLeftSpan.textContent = 'N/A';
             }
+            gameData.onlinePlayers = Math.max(gameData.onlinePlayers, 1); // At least 1 player (Admin)
+            localStorage.setItem('gameData', JSON.stringify(gameData));
+            stateSpan.textContent = gameData.state;
+            timeLeftSpan.textContent = `${gameData.timeLeft}s`;
+            onlinePlayersDiv.textContent = `Online Players: ${gameData.onlinePlayers}`;
         }
 
         function generateBonusSlots() {
@@ -142,7 +129,7 @@
             const anglePerNumber = 360 / 36;
             const index = Math.floor(finalAngle / anglePerNumber);
             const number = (index % 36) + 1;
-            const bonusData = JSON.parse(localStorage.getItem('gameData') || '{}').bonusSlots.find(slot => slot.number === number);
+            const bonusData = JSON.parse(localStorage.getItem('gameData')).bonusSlots.find(slot => slot.number === number);
             const bonus = bonusData ? bonusData.bonus : 0;
             return {
                 number,
@@ -169,81 +156,67 @@
                 alert('Password မမှန်ပါ!');
                 return;
             }
-            startPersistentServer();
+            startPersistentServer(); // Start the persistent server loop
             setInterval(() => {
-                try {
-                    const requests = JSON.parse(localStorage.getItem('requests') || '{}');
-                    depositRequestsDiv.innerHTML = '<h3>Deposit Requests</h3>';
-                    withdrawRequestsDiv.innerHTML = '<h3>Withdraw Requests</h3>';
-                    Object.entries(requests).forEach(([id, req]) => {
-                        if (req.status === 'pending') {
-                            if (req.type === 'deposit') {
-                                const div = document.createElement('div');
-                                div.className = 'request';
-                                div.innerHTML = `
-                                    User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
-                                    Amount: ${req.amount} MMK<br>
-                                    Transaction ID: ${req.transactionId}<br>
-                                    <button onclick="approveRequest('${id}', 'deposit')">✅ လက်ခံ</button>
-                                    <button onclick="rejectRequest('${id}', 'deposit')">❌ ငြင်းပယ်</button>
-                                `;
-                                depositRequestsDiv.appendChild(div);
-                            } else if (req.type === 'withdraw') {
-                                const div = document.createElement('div');
-                                div.className = 'request';
-                                div.innerHTML = `
-                                    User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
-                                    Amount: ${req.amount} MMK<br>
-                                    Method: ${req.method}<br>
-                                    Phone: ${req.phone}<br>
-                                    <button onclick="approveRequest('${id}', 'withdraw')">✅ လက်ခံ</button>
-                                    <button onclick="rejectRequest('${id}', 'withdraw')">❌ ငြင်းပယ်</button>
-                                `;
-                                withdrawRequestsDiv.appendChild(div);
-                            }
+                const requests = JSON.parse(localStorage.getItem('requests') || '{}');
+                depositRequestsDiv.innerHTML = '<h3>Deposit Requests</h3>';
+                withdrawRequestsDiv.innerHTML = '<h3>Withdraw Requests</h3>';
+                Object.entries(requests).forEach(([id, req]) => {
+                    if (req.status === 'pending') {
+                        if (req.type === 'deposit') {
+                            const div = document.createElement('div');
+                            div.className = 'request';
+                            div.innerHTML = `
+                                User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
+                                Amount: ${req.amount} MMK<br>
+                                Transaction ID: ${req.transactionId}<br>
+                                <button onclick="approveRequest('${id}', 'deposit')">✅ လက်ခံ</button>
+                                <button onclick="rejectRequest('${id}', 'deposit')">❌ ငြင်းပယ်</button>
+                            `;
+                            depositRequestsDiv.appendChild(div);
+                        } else if (req.type === 'withdraw') {
+                            const div = document.createElement('div');
+                            div.className = 'request';
+                            div.innerHTML = `
+                                User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
+                                Amount: ${req.amount} MMK<br>
+                                Method: ${req.method}<br>
+                                Phone: ${req.phone}<br>
+                                <button onclick="approveRequest('${id}', 'withdraw')">✅ လက်ခံ</button>
+                                <button onclick="rejectRequest('${id}', 'withdraw')">❌ ငြင်းပယ်</button>
+                            `;
+                            withdrawRequestsDiv.appendChild(div);
                         }
-                    });
-                } catch (e) {
-                    console.error('Error loading requests:', e);
-                    depositRequestsDiv.innerHTML = '<h3>Error loading deposit requests</h3>';
-                    withdrawRequestsDiv.innerHTML = '<h3>Error loading withdraw requests</h3>';
-                }
+                    }
+                });
             }, 1000);
         }
 
         function approveRequest(id, type) {
-            try {
-                const requests = JSON.parse(localStorage.getItem('requests') || '{}');
-                if (requests[id]) {
-                    requests[id].status = 'approved';
-                    const userId = requests[id].userId;
-                    const amount = requests[id].amount;
-                    if (type === 'deposit') {
-                        const userBalance = parseInt(localStorage.getItem(`${userId}_balance`) || '0') + amount;
-                        localStorage.setItem(`${userId}_balance`, userBalance);
-                    }
-                    localStorage.setItem('requests', JSON.stringify(requests));
+            const requests = JSON.parse(localStorage.getItem('requests') || '{}');
+            if (requests[id]) {
+                requests[id].status = 'approved';
+                const userId = requests[id].userId;
+                const amount = requests[id].amount;
+                if (type === 'deposit') {
+                    const userBalance = parseInt(localStorage.getItem(`${userId}_balance`) || '0') + amount;
+                    localStorage.setItem(`${userId}_balance`, userBalance);
                 }
-            } catch (e) {
-                console.error('Error approving request:', e);
+                localStorage.setItem('requests', JSON.stringify(requests));
             }
         }
 
         function rejectRequest(id, type) {
-            try {
-                const requests = JSON.parse(localStorage.getItem('requests') || '{}');
-                if (requests[id]) {
-                    requests[id].status = 'rejected';
-                    const userId = requests[id].userId;
-                    const amount = requests[id].amount;
-                    if (type === 'withdraw') {
-                        const userBalance = parseInt(localStorage.getItem(`${userId}_balance`) || '0') + amount;
-                        localStorage.setItem(`${userId}_balance`, userBalance);
-                    }
-                    localStorage.setItem('requests', JSON.stringify(requests));
+            const requests = JSON.parse(localStorage.getItem('requests') || '{}');
+            if (requests[id]) {
+                requests[id].status = 'rejected';
+                const userId = requests[id].userId;
+                const amount = requests[id].amount;
+                if (type === 'withdraw') {
+                    const userBalance = parseInt(localStorage.getItem(`${userId}_balance`) || '0') + amount;
+                    localStorage.setItem(`${userId}_balance`, userBalance);
                 }
-            } catch (e) {
-                console.error('Error rejecting request:', e);
+                localStorage.setItem('requests', JSON.stringify(requests));
             }
         }
 
