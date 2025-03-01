@@ -741,6 +741,8 @@
         function startSpin(finalAngle) {
             const pointer = document.getElementById('pointer');
             roulette.style.display = 'block';
+            betTable.style.display = 'none';
+            betChips.style.display = 'none';
             result.innerHTML = "ဘောလုံးလှည့်နေပါတယ်... ⏳";
             pointer.style.setProperty('--final-angle', `${finalAngle}deg`);
             pointer.classList.add('spinning');
@@ -777,6 +779,7 @@
             }
             result.innerHTML = message;
             updateHistory(resultData);
+            resetGame();
         }
 
         function resetGame() {
@@ -785,8 +788,11 @@
             userData.bets = bets;
             localStorage.setItem('user_' + userId, JSON.stringify(userData));
             updateUserInfo(userId, userData);
+            allBets = {};
+            localStorage.setItem('allBets', JSON.stringify(allBets));
             updateBetCounts(allBets);
             clearBetTable();
+            clearGreenBets();
         }
 
         function clearBetTable() {
@@ -801,6 +807,12 @@
                 const betArea = document.getElementById(`bet-${area}`);
                 const chip = betArea && betArea.querySelector('.bet-chip');
                 if (chip) chip.remove();
+            });
+        }
+
+        function clearGreenBets() {
+            document.querySelectorAll('.bet-area.green').forEach(area => {
+                area.classList.remove('green');
             });
         }
 
