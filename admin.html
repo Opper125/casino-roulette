@@ -76,7 +76,7 @@
 
         // Game Server Logic
         function manageGameServer() {
-            let gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 1, "bonusSlots": []}');
+            let gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 0, "bonusSlots": []}');
             if (gameData.timeLeft > 0) {
                 gameData.timeLeft--;
                 if (gameData.state === 'betting' && gameData.timeLeft === 7) {
@@ -106,6 +106,7 @@
                     }, 8000);
                 }
             }
+            gameData.onlinePlayers = Math.max(gameData.onlinePlayers, 1); // At least 1 player (Admin)
             localStorage.setItem('gameData', JSON.stringify(gameData));
             stateSpan.textContent = gameData.state;
             timeLeftSpan.textContent = `${gameData.timeLeft}s`;
