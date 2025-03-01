@@ -433,28 +433,7 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
-
     <script>
-        // Firebase Configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyAC0zvXE_Zv99c2RvMy3gpH5F4Is0Wm1oE",
-            authDomain: "cacino-roulette.firebaseapp.com",
-            databaseURL: "https://cacino-roulette-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "cacino-roulette",
-            storageBucket: "cacino-roulette.firebasestorage.app",
-            messagingSenderId: "794938085254",
-            appId: "1:794938085254:web:cd9438d783dc1fad7ae607",
-            measurementId: "G-WZWFMZD6N1"
-        };
-
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-
         let userId = null;
         let phone = null;
         let balance = 0;
@@ -479,7 +458,7 @@
         const gameContainer = document.getElementById('gameContainer');
         const historyDiv = document.getElementById('history');
 
-        // Login Function
+        // Anonymous Login
         function login() {
             const inputPhone = document.getElementById('phone').value;
             const inputPin = document.getElementById('pin').value;
@@ -489,41 +468,37 @@
             }
             phone = inputPhone;
             userId = btoa(phone + inputPin);
-            firebase.auth().signInAnonymously().then(() => {
-                db.ref('users/' + userId).once('value').then((snapshot) => {
-                    if (!snapshot.exists()) {
-                        db.ref('users/' + userId).set({
-                            phone: phone,
-                            balance: 10000, // စမ်းသပ်ဖို့ အစပိုင်း 10,000 MMK ပေးထားတယ်
-                            createdAt: firebase.database.ServerValue.TIMESTAMP
-                        });
-                    }
-                    loadUserData();
-                    document.getElementById('loginModal').style.display = 'none';
-                    gameContainer.style.display = 'flex';
-                    syncGameState();
-                });
-            }).catch((error) => {
-                console.error("Auth Error:", error);
-                result.innerHTML = "❌ အကောင့်ဝင်မှု မအောင်မြင်ပါ!";
-            });
+            let userData = JSON.parse(localStorage.getItem('user_' + userId)) || {
+                phone: phone,
+                balance: 10000, // စမ်းသပ်ဖို့ 10,000 MMK
+                bets: {},
+                history: [],
+                usedTransactionIds: []
+            };
+            localStorage.setItem('user_' + userId, JSON.stringify(userData));
+            updateUserInfo(userId, userData);
+            loadUserData();
+            document.getElementById('loginModal').style.display = 'none';
+            gameContainer.style.display = 'flex';
+            syncGameState();
         }
 
-        // Load User Data from Firebase
+        // Load User Data
         function loadUserData() {
-            db.ref('users/' + userId).on('value', (snapshot) => {
-                const data = snapshot.val();
-                balance = data.balance || 0;
-                usedTransactionIds = data.usedTransactionIds || [];
-                bets = data.bets || {};
-                updateBalance();
-            });
+            const userData = JSON.parse(localStorage.getItem('user_' + userId));
+            balance = userData.balance || 0;
+            bets = userData.bets || {};
+            history = userData.history || [];
+            usedTransactionIds = userData.usedTransactionIds || [];
+            updateBalance();
         }
 
         // Update UI
         function updateUI() {
             updateBalance();
+            onlinePlayers = JSON.parse(localStorage.getItem('onlinePlayers') || '0');
             document.getElementById('online-players').innerHTML = `Online Players: ${onlinePlayers}`;
+            allBets = JSON.parse(localStorage.getItem('allBets') || '{}');
             updateBetCounts(allBets);
             updateHistory();
             timer.innerHTML = `Time Left: ${timeLeft}s`;
@@ -539,28 +514,24 @@
             }
         }
 
-        // Sync Game State with Firebase
+        // Sync Game State
         function syncGameState() {
-            db.ref('game').on('value', (snapshot) => {
-                try {
-                    const gameData = snapshot.val();
-                    if (!gameData) {
-                        result.innerHTML = "⏳ Admin ဖွင့်ရန် စောင့်ပါ...";
-                        return;
-                    }
-                    gameState = gameData.state;
-                    timeLeft = gameData.timeLeft;
-                    allBets = gameData.bets || {};
-                    onlinePlayers = gameData.onlinePlayers || 0;
-                    bonusSlots = gameData.bonusSlots || [];
-                    updateUI();
-                    if (gameState === 'spinning') spinWheel(gameData.finalAngle);
-                    else if (gameState === 'result') showResult(gameData.result);
-                } catch (e) {
-                    console.error('Error syncing game state:', e);
-                    result.innerHTML = "❌ ဂိမ်းချိတ်ဆက်မှု ပြဿနာ!";
+            setInterval(() => {
+                const gameData = JSON.parse(localStorage.getItem('gameData') || '{}');
+                if (!gameData || !gameData.isRunning) {
+                    result.innerHTML = "⏳ Admin ဖွင့်ရန် စောင့်ပါ...";
+                    gameState = 'stopped';
+                    return;
                 }
-            });
+                gameState = gameData.state || 'betting';
+                timeLeft = gameData.timeLeft || 30;
+                allBets = gameData.bets || {};
+                onlinePlayers = gameData.onlinePlayers || 0;
+                bonusSlots = gameData.bonusSlots || [];
+                updateUI();
+                if (gameState === 'spinning') spinWheel(gameData.finalAngle);
+                else if (gameState === 'result') showResult(gameData.result);
+            }, 1000);
         }
 
         function setupRoulette() {
@@ -582,14 +553,26 @@
         function updateBalance(amount = 0) {
             if (amount !== 0) {
                 balance += amount;
-                db.ref('users/' + userId).update({ balance });
+                const userData = JSON.parse(localStorage.getItem('user_' + userId));
+                userData.balance = balance;
+                localStorage.setItem('user_' + userId, JSON.stringify(userData));
+                updateUserInfo(userId, userData);
             }
             balanceValue.innerHTML = balance;
             document.getElementById('balance').innerHTML = `Balance: <span id="balance-value">${balance}</span> MMK`;
         }
 
-        function updateTotalBet() {
-            totalBet = Object.values(bets).reduce((sum, value) => sum + value, 0);
+        function updateUserInfo(userId, userData) {
+            let userInfo = JSON.parse(localStorage.getItem('userInfo') || '[]');
+            const existingUserIndex = userInfo.findIndex(u => u.userId === userId);
+            if (existingUserIndex !== -1) {
+                userInfo[existingUserIndex] = { userId, phone: userData.phone, balance: userData.balance };
+            } else {
+                userInfo.push({ userId, phone: userData.phone, balance: userData.balance });
+                onlinePlayers++;
+                localStorage.setItem('onlinePlayers', onlinePlayers);
+            }
+            localStorage.setItem('userInfo', JSON.stringify(userInfo));
         }
 
         function showDepositModal() { document.getElementById('depositModal').style.display = 'flex'; }
@@ -604,17 +587,13 @@
                 return;
             }
             usedTransactionIds.push(transactionId);
-            db.ref('users/' + userId).update({ usedTransactionIds });
+            const userData = JSON.parse(localStorage.getItem('user_' + userId));
+            userData.usedTransactionIds = usedTransactionIds;
+            localStorage.setItem('user_' + userId, JSON.stringify(userData));
             const requestId = `${userId}_${Date.now()}`;
-            db.ref('requests/' + requestId).set({
-                userId,
-                amount,
-                transactionId,
-                phone,
-                type: 'deposit',
-                status: 'pending',
-                timestamp: firebase.database.ServerValue.TIMESTAMP
-            });
+            let requests = JSON.parse(localStorage.getItem('requests') || '{}');
+            requests[requestId] = { userId, amount, transactionId, phone, type: 'deposit', status: 'pending', timestamp: Date.now() };
+            localStorage.setItem('requests', JSON.stringify(requests));
             result.innerHTML = "⏳ Deposit တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
             closeModal('depositModal');
             checkRequestStatus(requestId, 'deposit');
@@ -630,15 +609,9 @@
             }
             updateBalance(-amount);
             const requestId = `${userId}_${Date.now()}`;
-            db.ref('requests/' + requestId).set({
-                userId,
-                amount,
-                method,
-                phone: phoneWithdraw,
-                type: 'withdraw',
-                status: 'pending',
-                timestamp: firebase.database.ServerValue.TIMESTAMP
-            });
+            let requests = JSON.parse(localStorage.getItem('requests') || '{}');
+            requests[requestId] = { userId, amount, method, phone: phoneWithdraw, type: 'withdraw', status: 'pending', timestamp: Date.now() };
+            localStorage.setItem('requests', JSON.stringify(requests));
             result.innerHTML = "⏳ Withdraw တောင်းဆိုမှု ပို့ပြီးပါပြီ!";
             closeModal('withdrawModal');
             checkRequestStatus(requestId, 'withdraw');
@@ -646,19 +619,18 @@
 
         function checkRequestStatus(requestId, type) {
             const interval = setInterval(() => {
-                db.ref('requests/' + requestId).once('value', (snapshot) => {
-                    const req = snapshot.val();
-                    if (req && req.status !== 'pending') {
-                        clearInterval(interval);
-                        if (req.status === 'approved') {
-                            if (type === 'deposit') updateBalance(req.amount);
-                            result.innerHTML = `✅ ${type === 'deposit' ? 'Deposit' : 'Withdraw'} အောင်မြင်ပါပြီ!`;
-                        } else {
-                            if (type === 'withdraw') updateBalance(req.amount);
-                            result.innerHTML = `❌ ${type === 'deposit' ? 'Deposit' : 'Withdraw'} ပယ်ချခံရပါတယ်!`;
-                        }
+                let requests = JSON.parse(localStorage.getItem('requests') || '{}');
+                const req = requests[requestId];
+                if (req && req.status !== 'pending') {
+                    clearInterval(interval);
+                    if (req.status === 'approved') {
+                        if (type === 'deposit') updateBalance(req.amount);
+                        result.innerHTML = `✅ ${type === 'deposit' ? 'Deposit' : 'Withdraw'} အောင်မြင်ပါပြီ!`;
+                    } else {
+                        if (type === 'withdraw') updateBalance(req.amount);
+                        result.innerHTML = `❌ ${type === 'deposit' ? 'Deposit' : 'Withdraw'} ပယ်ချခံရပါတယ်!`;
                     }
-                });
+                }
             }, 1000);
         }
 
@@ -702,8 +674,13 @@
             if (gameState !== 'betting' || timeLeft <= 7 || !currentChip || balance < currentChip) return;
             balance -= currentChip;
             bets[areaId] = (bets[areaId] || 0) + currentChip;
-            db.ref('users/' + userId).update({ balance, bets });
-            db.ref('game/bets/' + areaId).transaction((current) => (current || 0) + currentChip);
+            const userData = JSON.parse(localStorage.getItem('user_' + userId));
+            userData.bets = bets;
+            userData.balance = balance;
+            localStorage.setItem('user_' + userId, JSON.stringify(userData));
+            updateUserInfo(userId, userData);
+            allBets[areaId] = (allBets[areaId] || 0) + currentChip;
+            localStorage.setItem('allBets', JSON.stringify(allBets));
             updateBetCounts(allBets);
             const chipElement = document.createElement('div');
             chipElement.className = 'chip-animation';
@@ -779,9 +756,11 @@
             }
             result.innerHTML = message;
             bets = {};
-            db.ref('users/' + userId).update({ bets });
+            const userData = JSON.parse(localStorage.getItem('user_' + userId));
+            userData.bets = bets;
+            localStorage.setItem('user_' + userId, JSON.stringify(userData));
+            updateUserInfo(userId, userData);
             updateBetCounts(allBets);
-            updateTotalBet();
             clearBetTable();
             updateHistory(resultData);
         }
@@ -802,7 +781,9 @@
         function updateHistory(resultData) {
             history.push({ number: resultData.number, isBlack: resultData.isBlack });
             if (history.length > 10) history.shift();
-            db.ref('users/' + userId).update({ history });
+            const userData = JSON.parse(localStorage.getItem('user_' + userId));
+            userData.history = history;
+            localStorage.setItem('user_' + userId, JSON.stringify(userData));
             let historyHTML = '';
             history.forEach(item => {
                 const className = item.isBlack ? 'black' : 'red';
