@@ -89,9 +89,9 @@
 
         let bonusSlots = [];
 
-        // Game Server Logic
+        // Game Server Logic with Advanced Control
         function manageGameServer() {
-            let gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 0, "bonusSlots": [], "isRunning": true}');
+            let gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 0, "bonusSlots": [], "isRunning": true, "gameVersion": "1.0"}');
             
             if (gameData.timeLeft > 0) {
                 gameData.timeLeft--;
@@ -192,40 +192,51 @@
 
         // Persistent Server Loop
         function startPersistentServer() {
-            setInterval(manageGameServer, 1000);
+            setInterval(() => {
+                try {
+                    manageGameServer();
+                } catch (e) {
+                    console.error('Server Error:', e);
+                    alert('Admin Server တွင် ပြဿနာရှိနေပါတယ်။ ပြန်စမ်းကြည့်ပါ!');
+                }
+            }, 1000);
         }
 
         function syncRequests() {
             setInterval(() => {
-                const requests = JSON.parse(localStorage.getItem('requests') || '{}');
-                depositRequestsDiv.innerHTML = '<h3>Deposit Requests</h3>';
-                withdrawRequestsDiv.innerHTML = '<h3>Withdraw Requests</h3>';
-                Object.entries(requests).forEach(([id, req]) => {
-                    if (req.status === 'pending') {
-                        const div = document.createElement('div');
-                        div.className = 'request';
-                        if (req.type === 'deposit') {
-                            div.innerHTML = `
-                                User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
-                                Amount: ${req.amount} MMK<br>
-                                Transaction ID: ${req.transactionId}<br>
-                                <button onclick="approveRequest('${id}', 'deposit')">✅ လက်ခံ</button>
-                                <button onclick="rejectRequest('${id}', 'deposit')">❌ ငြင်းပယ်</button>
-                            `;
-                            depositRequestsDiv.appendChild(div);
-                        } else if (req.type === 'withdraw') {
-                            div.innerHTML = `
-                                User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
-                                Amount: ${req.amount} MMK<br>
-                                Method: ${req.method}<br>
-                                Phone: ${req.phone}<br>
-                                <button onclick="approveRequest('${id}', 'withdraw')">✅ လက်ခံ</button>
-                                <button onclick="rejectRequest('${id}', 'withdraw')">❌ ငြင်းပယ်</button>
-                            `;
-                            withdrawRequestsDiv.appendChild(div);
+                try {
+                    const requests = JSON.parse(localStorage.getItem('requests') || '{}');
+                    depositRequestsDiv.innerHTML = '<h3>Deposit Requests</h3>';
+                    withdrawRequestsDiv.innerHTML = '<h3>Withdraw Requests</h3>';
+                    Object.entries(requests).forEach(([id, req]) => {
+                        if (req.status === 'pending') {
+                            const div = document.createElement('div');
+                            div.className = 'request';
+                            if (req.type === 'deposit') {
+                                div.innerHTML = `
+                                    User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
+                                    Amount: ${req.amount} MMK<br>
+                                    Transaction ID: ${req.transactionId}<br>
+                                    <button onclick="approveRequest('${id}', 'deposit')">✅ လက်ခံ</button>
+                                    <button onclick="rejectRequest('${id}', 'deposit')">❌ ငြင်းပယ်</button>
+                                `;
+                                depositRequestsDiv.appendChild(div);
+                            } else if (req.type === 'withdraw') {
+                                div.innerHTML = `
+                                    User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>
+                                    Amount: ${req.amount} MMK<br>
+                                    Method: ${req.method}<br>
+                                    Phone: ${req.phone}<br>
+                                    <button onclick="approveRequest('${id}', 'withdraw')">✅ လက်ခံ</button>
+                                    <button onclick="rejectRequest('${id}', 'withdraw')">❌ ငြင်းပယ်</button>
+                                `;
+                                withdrawRequestsDiv.appendChild(div);
+                            }
                         }
-                    }
-                });
+                    });
+                } catch (e) {
+                    console.error('Request Sync Error:', e);
+                }
             }, 1000);
         }
 
@@ -271,6 +282,12 @@
         // Initialize
         startPersistentServer();
         syncRequests();
+
+        // Error Handling
+        window.onerror = function (msg, url, lineNo, columnNo, error) {
+            console.error('Admin Error:', msg, 'Line:', lineNo, 'Column:', columnNo, 'Details:', error);
+            return false;
+        };
     </script>
 </body>
 </html>
