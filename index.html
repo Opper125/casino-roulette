@@ -511,6 +511,10 @@
                 betTable.style.display = 'none';
                 betChips.style.display = 'none';
                 result.innerHTML = "⏳ Betting ပိတ်တော့မည်!";
+            } else if (gameState === 'spinning') {
+                spinWheel(JSON.parse(localStorage.getItem('gameData')).finalAngle);
+            } else if (gameState === 'result') {
+                showResult(JSON.parse(localStorage.getItem('gameData')).result);
             }
         }
 
@@ -521,6 +525,10 @@
                 if (!gameData || !gameData.isRunning) {
                     result.innerHTML = "⏳ Admin ဖွင့်ရန် စောင့်ပါ...";
                     gameState = 'stopped';
+                    timeLeft = 30;
+                    bets = {};
+                    bonusSlots = [];
+                    updateUI();
                     return;
                 }
                 gameState = gameData.state || 'betting';
@@ -529,8 +537,6 @@
                 onlinePlayers = gameData.onlinePlayers || 0;
                 bonusSlots = gameData.bonusSlots || [];
                 updateUI();
-                if (gameState === 'spinning') spinWheel(gameData.finalAngle);
-                else if (gameState === 'result') showResult(gameData.result);
             }, 1000);
         }
 
@@ -727,7 +733,9 @@
             result.innerHTML = "ဘောလုံးလှည့်နေပါတယ်... ⏳";
             pointer.style.setProperty('--final-angle', `${finalAngle}deg`);
             pointer.classList.add('spinning');
-            setTimeout(() => pointer.classList.remove('spinning'), 8000);
+            setTimeout(() => {
+                pointer.classList.remove('spinning');
+            }, 8000); // Spin ကြာချိန် 8 စက္ကန့်
         }
 
         function showResult(resultData) {
