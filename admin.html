@@ -77,6 +77,7 @@
         // Game Server Logic
         function manageGameServer() {
             let gameData = JSON.parse(localStorage.getItem('gameData') || '{"state": "betting", "timeLeft": 30, "bets": {}, "onlinePlayers": 0, "bonusSlots": [], "isRunning": true}');
+            
             if (gameData.timeLeft > 0) {
                 gameData.timeLeft--;
                 if (gameData.state === 'betting' && gameData.timeLeft === 7) {
