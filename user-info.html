@@ -5,16 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Info - Casino Roulette</title>
     <style>
-        body { font-family: 'Arial', sans-serif; background: #1a1a1a; color: #ffd700; margin: 0; padding: 20px; height: 100vh; display: flex; justify-content: center; align-items: center; }
-        .container { max-width: 800px; background: rgba(30, 30, 30, 0.95); padding: 20px; border-radius: 15px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); text-align: center; }
+        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #ffd700; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: rgba(30, 30, 30, 0.95); padding: 20px; border-radius: 10px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); text-align: center; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 10px; border: 2px solid #ffd700; }
         th { background: #333; }
         button { padding: 8px 15px; background: #ffd700; color: #000; border: none; border-radius: 5px; cursor: pointer; }
     </style>
-    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-analytics.js"></script>
 </head>
 <body>
     <div class="container">
@@ -29,44 +26,46 @@
     </div>
 
     <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyBlZ5wL6b_0wpcM6VEOTz-KQOYH-3E-peg",
-            authDomain: "casino-roulette-opper.firebaseapp.com",
-            projectId: "casino-roulette-opper",
-            storageBucket: "casino-roulette-opper.firebasestorage.app",
-            messagingSenderId: "444515283629",
-            appId: "1:444515283629:web:343c7e50b8b25cd5dbcc24",
-            measurementId: "G-QE8SNQ5HQQ",
-            databaseURL: "https://casino-roulette-opper-default-rtdb.asia-southeast1.firebasedatabase.app/"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-        const analytics = firebase.analytics();
+        const GITHUB_TOKEN = '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';
+        const REPO = 'casino-roulette';
+        const OWNER = 'Opper125';
+        const FILE_PATH = 'data.json';
+
+        async function syncData(action, updates = {}) {
+            const response = await fetch('/.netlify/functions/sync', {
+                method: 'POST',
+                body: JSON.stringify({ action, updates, token: GITHUB_TOKEN, repo: REPO, owner: OWNER, path: FILE_PATH })
+            });
+            return await response.json();
+        }
 
         function updateUserInfo() {
-            db.ref('users').on('value', snap => {
-                const userInfo = snap.val() || {};
+            setInterval(async () => {
+                const data = await syncData('get');
                 const userList = document.getElementById('userList');
                 userList.innerHTML = '';
-                Object.entries(userInfo).forEach(([id, user]) => {
+                const users = data.users || {};
+                Object.entries(users).forEach(([id, user]) => {
                     const row = document.createElement('tr');
                     row.innerHTML = `<td>${id.substr(0, 8)}...</td><td>${user.phone}</td><td>${user.balance}</td>`;
                     userList.appendChild(row);
                 });
-            });
+            }, 1000);
         }
 
-        function exportUserData() {
-            db.ref('users').once('value', snap => {
-                const userInfo = snap.val() || {};
-                const csv = 'User ID,Phone,Balance\n' + Object.entries(userInfo).map(([id, u]) => `${id},${u.phone},${u.balance}`).join('\n');
-                const blob = new Blob([csv], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'user_data.csv';
-                a.click();
+        async function exportUserData() {
+            const data = await syncData('get');
+            const users = data.users || {};
+            let csv = 'User ID,Phone,Balance\n';
+            Object.entries(users).forEach(([id, user]) => {
+                csv += `${id},${user.phone},${user.balance}\n`;
             });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'user_data.csv';
+            a.click();
         }
 
         updateUserInfo();
