@@ -1,8 +1,8 @@
 const fetch = require('node-fetch');
 
 exports.handler = async (event) => {
-    const { action, updates, token, repo, owner, path } = JSON.parse(event.body || '{}');
-    const GITHUB_TOKEN = process.env.GITHUB_TOKEN || token; // Use environment variable if available
+    const { action, updates, repo, owner, path } = JSON.parse(event.body || '{}');
+    const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
     const headers = {
         'Authorization': `token ${GITHUB_TOKEN}`,
