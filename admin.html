@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Casino Roulette</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; background: #1a1a1a; color: #ffd700; margin: 0; padding: 20px; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        .container { max-width: 800px; background: rgba(30, 30, 30, 0.95); padding: 20px; border-radius: 15px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); text-align: center; }
+        h1 { text-shadow: 0 0 10px #ffd700; }
+        .request { padding: 10px; margin: 5px; background: #333; border: 2px solid #ffd700; border-radius: 5px; }
+        button { padding: 8px 15px; background: #ffd700; color: #000; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-analytics.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🎰 Admin Dashboard 🎰</h1>
+        <div id="game-status">Game Status: <span id="state">Betting</span> | Time Left: <span id="timeLeft">30s</span></div>
+        <div id="online-players">Online Players: 0</div>
+        <div id="deposit-requests"><h3>Deposit Requests</h3></div>
+        <div id="withdraw-requests"><h3>Withdraw Requests</h3></div>
+        <button onclick="window.open('user-info.html')">👤 User Info</button>
+        <button onclick="window.open('customer.html')">📞 Support</button>
+        <button onclick="resetServer()">🔄 Reset Server</button>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBlZ5wL6b_0wpcM6VEOTz-KQOYH-3E-peg",
+            authDomain: "casino-roulette-opper.firebaseapp.com",
+            projectId: "casino-roulette-opper",
+            storageBucket: "casino-roulette-opper.firebasestorage.app",
+            messagingSenderId: "444515283629",
+            appId: "1:444515283629:web:343c7e50b8b25cd5dbcc24",
+            measurementId: "G-QE8SNQ5HQQ",
+            databaseURL: "https://casino-roulette-opper-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const analytics = firebase.analytics();
+
+        function manageGameServer() {
+            db.ref('game').once('value', snap => {
+                let gameData = snap.val() || { state: 'betting', timeLeft: 30, onlinePlayers: 0, isRunning: true };
+                if (gameData.timeLeft > 0) {
+                    gameData.timeLeft--;
+                } else {
+                    if (gameData.state === 'betting') {
+                        gameData.state = 'spinning';
+                        gameData.finalAngle = Math.floor(Math.random() * 360);
+                        gameData.timeLeft = 8;
+                    } else if (gameData.state === 'spinning') {
+                        gameData.result = { number: Math.floor(Math.random() * 36) + 1 };
+                        gameData.state = 'result';
+                        gameData.timeLeft = 2;
+                    } else {
+                        gameData.state = 'betting';
+                        gameData.timeLeft = 30;
+                        delete gameData.result;
+                    }
+                }
+                db.ref('users').once('value', snap => {
+                    gameData.onlinePlayers = snap.val() ? Object.keys(snap.val()).length : 0;
+                    db.ref('game').set(gameData);
+                    document.getElementById('state').innerHTML = gameData.state;
+                    document.getElementById('timeLeft').innerHTML = `${gameData.timeLeft}s`;
+                    document.getElementById('online-players').innerHTML = `Online Players: ${gameData.onlinePlayers}`;
+                });
+            });
+        }
+
+        function syncRequests() {
+            db.ref('requests').on('value', snap => {
+                const requests = snap.val() || {};
+                const depositDiv = document.getElementById('deposit-requests');
+                const withdrawDiv = document.getElementById('withdraw-requests');
+                depositDiv.innerHTML = '<h3>Deposit Requests</h3>';
+                withdrawDiv.innerHTML = '<h3>Withdraw Requests</h3>';
+                Object.entries(requests).forEach(([id, req]) => {
+                    if (req.status === 'pending') {
+                        const div = document.createElement('div');
+                        div.className = 'request';
+                        div.innerHTML = req.type === 'deposit' ?
+                            `User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>Amount: ${req.amount} MMK<br>Transaction ID: ${req.transactionId}<br>
+                            <button onclick="approveRequest('${id}', 'deposit')">✅ လက်ခံ</button><button onclick="rejectRequest('${id}')">❌ ငြင်းပယ်</button>` :
+                            `User: ${req.userId.substr(0, 8)}... (Phone: ${req.withdrawPhone})<br>Amount: ${req.amount} MMK<br>
+                            <button onclick="approveRequest('${id}', 'withdraw')">✅ လက်ခံ</button><button onclick="rejectRequest('${id}')">❌ ငြင်းပယ်</button>`;
+                        req.type === 'deposit' ? depositDiv.appendChild(div) : withdrawDiv.appendChild(div);
+                    }
+                });
+            });
+        }
+
+        function approveRequest(id, type) {
+            db.ref('requests/' + id).update({ status: 'approved' });
+            if (type === 'deposit') {
+                db.ref('requests/' + id).once('value', snap => {
+                    const req = snap.val();
+                    db.ref('users/' + req.userId).once('value', snap => {
+                        const user = snap.val();
+                        db.ref('users/' + req.userId).update({ balance: user.balance + req.amount });
+                    });
+                });
+            }
+        }
+
+        function rejectRequest(id) {
+            db.ref('requests/' + id).update({ status: 'rejected' });
+        }
+
+        function resetServer() {
+            db.ref('/').set({ game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, isRunning: true } });
+            alert('Server အသစ်စတင်ပြီးပါပြီ။');
+        }
+
+        setInterval(manageGameServer, 1000);
+        syncRequests();
+    </script>
+</body>
+</html>

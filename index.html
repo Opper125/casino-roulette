@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Casino Roulette - Game Zone Myanmar</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; background: #1a1a1a; color: #ffd700; margin: 0; padding: 0; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        .game-container { width: 100%; max-width: 400px; background: rgba(30, 30, 30, 0.9); padding: 10px; border-radius: 15px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); text-align: center; }
+        h1 { font-size: 1.8em; margin: 10px 0; text-shadow: 0 0 10px #ffd700; }
+        .bet-table { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin: 10px auto; }
+        .bet-area { padding: 8px; background: #333; border: 2px solid #ffd700; cursor: pointer; border-radius: 5px; }
+        .bet-area:hover { background: #555; }
+        .chip { width: 40px; height: 40px; border-radius: 50%; background: #ffd700; display: flex; align-items: center; justify-content: center; cursor: pointer; margin: 5px; }
+        .chip.active { border: 3px solid #fff; }
+        button { padding: 8px 15px; background: #ffd700; color: #000; border: none; border-radius: 5px; cursor: pointer; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: none; justify-content: center; align-items: center; }
+        .modal-content { background: #1e1e1e; padding: 20px; border-radius: 10px; color: #ffd700; width: 90%; max-width: 400px; }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-analytics.js"></script>
+</head>
+<body>
+    <div class="game-container" id="gameContainer" style="display: none;">
+        <h1>🎰 Casino Roulette 🎰</h1>
+        <div id="online-players">Online Players: 0</div>
+        <div id="balance">Balance: <span id="balance-value">0</span> MMK</div>
+        <div class="money-controls">
+            <button onclick="showDepositModal()">💸 Deposit</button>
+            <button onclick="showWithdrawModal()">🏦 Withdraw</button>
+            <button onclick="window.open('customer.html')">📞 Support</button>
+        </div>
+        <div class="timer" id="timer">Time Left: 30s</div>
+        <div class="bet-table" id="betTable"></div>
+        <div class="bet-chips" id="betChips">
+            <div class="chip" data-value="1000">1K</div>
+            <div class="chip" data-value="10000">10K</div>
+            <div class="chip" data-value="100000">100K</div>
+        </div>
+        <div id="result">ကစားရန် အကောင့်ဝင်ပါ!</div>
+    </div>
+
+    <div class="modal" id="loginModal" style="display: flex;">
+        <div class="modal-content">
+            <h2>🎮 အကောင့်ဝင်ရန်</h2>
+            <input type="text" id="phone" placeholder="ဖုန်းနံပတ် (09xxxxxxxxx)">
+            <input type="password" id="pin" placeholder="PIN (6 လုံး)">
+            <button onclick="login()">ဝင်မည်</button>
+        </div>
+    </div>
+
+    <div class="modal" id="depositModal">
+        <div class="modal-content">
+            <h2>💸 Deposit</h2>
+            <p>Kpay/Wave: <b>09786284670</b> (DHMK)</p>
+            <input type="number" id="deposit-amount" placeholder="ငွေပမာဏ (MMK)">
+            <input type="text" id="transaction-id" placeholder="Transaction ID (6 လုံး)">
+            <button onclick="submitDeposit()">တောင်းဆိုမည်</button>
+            <button onclick="closeModal('depositModal')">❌ ပိတ်မည်</button>
+        </div>
+    </div>
+
+    <div class="modal" id="withdrawModal">
+        <div class="modal-content">
+            <h2>🏦 Withdraw</h2>
+            <input type="text" id="withdraw-phone" placeholder="Kpay/Wave ဖုန်းနံပတ်">
+            <input type="number" id="withdraw-amount" placeholder="ငွေပမာဏ (MMK)">
+            <button onclick="submitWithdraw()">တောင်းဆိုမည်</button>
+            <button onclick="closeModal('withdrawModal')">❌ ပိတ်မည်</button>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBlZ5wL6b_0wpcM6VEOTz-KQOYH-3E-peg",
+            authDomain: "casino-roulette-opper.firebaseapp.com",
+            projectId: "casino-roulette-opper",
+            storageBucket: "casino-roulette-opper.firebasestorage.app",
+            messagingSenderId: "444515283629",
+            appId: "1:444515283629:web:343c7e50b8b25cd5dbcc24",
+            measurementId: "G-QE8SNQ5HQQ",
+            databaseURL: "https://casino-roulette-opper-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const analytics = firebase.analytics();
+
+        let userId, phone, balance = 0, bets = {}, timeLeft = 30, gameState = 'betting';
+
+        function login() {
+            phone = document.getElementById('phone').value;
+            const pin = document.getElementById('pin').value;
+            if (!phone.match(/^09\d{8,9}$/) || pin.length !== 6) {
+                document.getElementById('result').innerHTML = "❌ ဖုန်း သို့မဟုတ် PIN မမှန်ပါ!";
+                return;
+            }
+            userId = btoa(phone + pin);
+            db.ref('users/' + userId).once('value', snap => {
+                const data = snap.val() || { balance: 10000, bets: {}, phone: phone };
+                balance = data.balance;
+                bets = data.bets;
+                updateUI();
+                document.getElementById('loginModal').style.display = 'none';
+                document.getElementById('gameContainer').style.display = 'block';
+                syncGameState();
+            });
+            localStorage.clear();
+        }
+
+        function updateUI() {
+            document.getElementById('balance-value').innerHTML = balance;
+            document.getElementById('timer').innerHTML = `Time Left: ${timeLeft}s`;
+            db.ref('game').once('value', snap => {
+                const gameData = snap.val();
+                document.getElementById('online-players').innerHTML = `Online Players: ${gameData.onlinePlayers || 0}`;
+                if (gameState === 'betting') document.getElementById('result').innerHTML = "🎲 Bet တင်ပါ!";
+                else if (gameState === 'spinning') document.getElementById('result').innerHTML = "⏳ လှည့်နေပါတယ်...";
+                else if (gameState === 'result') showResult(gameData.result);
+            });
+        }
+
+        function syncGameState() {
+            db.ref('game').on('value', snap => {
+                const gameData = snap.val();
+                gameState = gameData.state;
+                timeLeft = gameData.timeLeft;
+                updateUI();
+            });
+        }
+
+        function setupBetTable() {
+            const table = ['1', '2', '3', '4', '5', '6', 'red', 'black', 'odd', 'even', '1-18', '19-36'];
+            table.forEach(id => {
+                const div = document.createElement('div');
+                div.className = 'bet-area';
+                div.id = `bet-${id}`;
+                div.innerHTML = id;
+                div.onclick = () => placeBet(id);
+                document.getElementById('betTable').appendChild(div);
+            });
+        }
+
+        function placeBet(areaId) {
+            const chip = parseInt(document.querySelector('.chip.active')?.dataset.value);
+            if (gameState !== 'betting' || !chip || balance < chip) return;
+            balance -= chip;
+            bets[areaId] = (bets[areaId] || 0) + chip;
+            db.ref('users/' + userId).update({ balance, bets, phone });
+            updateUI();
+        }
+
+        document.querySelectorAll('.chip').forEach(chip => {
+            chip.onclick = () => {
+                document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+            };
+        });
+
+        function showResult(result) {
+            let winnings = bets[result.number] ? bets[result.number] * 36 : 0;
+            balance += winnings;
+            db.ref('users/' + userId).update({ balance, bets: {}, phone });
+            document.getElementById('result').innerHTML = winnings ? `🎉 အနိုင်ရ: ${winnings} MMK` : "😢 အရှုံးပါ";
+        }
+
+        function showDepositModal() { document.getElementById('depositModal').style.display = 'flex'; }
+        function showWithdrawModal() { document.getElementById('withdrawModal').style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function submitDeposit() {
+            const amount = parseInt(document.getElementById('deposit-amount').value);
+            const transactionId = document.getElementById('transaction-id').value;
+            if (amount < 100 || transactionId.length !== 6) return;
+            db.ref('requests').push({ userId, phone, amount, transactionId, type: 'deposit', status: 'pending' });
+            closeModal('depositModal');
+        }
+
+        function submitWithdraw() {
+            const amount = parseInt(document.getElementById('withdraw-amount').value);
+            const withdrawPhone = document.getElementById('withdraw-phone').value;
+            if (amount < 100 || amount > balance || !withdrawPhone) return;
+            balance -= amount;
+            db.ref('users/' + userId).update({ balance, phone });
+            db.ref('requests').push({ userId, phone, amount, withdrawPhone, type: 'withdraw', status: 'pending' });
+            closeModal('withdrawModal');
+        }
+
+        setupBetTable();
+    </script>
+</body>
+</html>
