@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Info - Casino Roulette</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #ffd700; margin: 0; padding: 20px; }
-        .container { max-width: 800px; margin: auto; background: rgba(30, 30, 30, 0.95); padding: 20px; border-radius: 10px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); text-align: center; }
+        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #1a1a1a, #2c003e); color: #ffd700; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: rgba(30, 30, 30, 0.95); padding: 20px; border-radius: 15px; box-shadow: 0 0 30px rgba(255, 215, 0, 0.7); text-align: center; }
+        h1 { text-shadow: 0 0 15px #ffd700; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 10px; border: 2px solid #ffd700; }
         th { background: #333; }
-        button { padding: 8px 15px; background: #ffd700; color: #000; border: none; border-radius: 5px; cursor: pointer; }
+        button { padding: 10px 20px; background: linear-gradient(45deg, #ffd700, #b8860b); color: #000; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; transition: transform 0.2s; }
+        button:hover { transform: scale(1.05); }
     </style>
 </head>
 <body>
@@ -19,7 +21,7 @@
         <button onclick="exportUserData()">📤 Export User Data</button>
         <table>
             <thead>
-                <tr><th>User ID</th><th>ဖုန်းနံပတ်</th><th>လက်ကျန်ငွေ (MMK)</th></tr>
+                <tr><th>User ID</th><th>ဖုန်းနံပတ်</th><th>လက်ကျန်ငွေ (MMK)</th><th>နောက်ဆုံး အသုံးပြုချိန်</th></tr>
             </thead>
             <tbody id="userList"></tbody>
         </table>
@@ -29,13 +31,20 @@
         const REPO = 'casino-roulette';
         const OWNER = 'Opper125';
         const FILE_PATH = 'data.json';
+        const BASE_URL = 'http://casino-roulette.opper.com';
 
         async function syncData(action, updates = {}) {
-            const response = await fetch('/.netlify/functions/sync', {
-                method: 'POST',
-                body: JSON.stringify({ action, updates, repo: REPO, owner: OWNER, path: FILE_PATH })
-            });
-            return await response.json();
+            try {
+                const response = await fetch(`${BASE_URL}/.netlify/functions/sync`, {
+                    method: 'POST',
+                    body: JSON.stringify({ action, updates, repo: REPO, owner: OWNER, path: FILE_PATH })
+                });
+                if (!response.ok) throw new Error('Sync failed');
+                return await response.json();
+            } catch (error) {
+                console.error('Sync Error:', error);
+                return { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0 } };
+            }
         }
 
         function updateUserInfo() {
@@ -46,7 +55,7 @@
                 const users = data.users || {};
                 Object.entries(users).forEach(([id, user]) => {
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td>${id.substr(0, 8)}...</td><td>${user.phone}</td><td>${user.balance}</td>`;
+                    row.innerHTML = `<td>${id.substr(0, 8)}...</td><td>${user.phone}</td><td>${user.balance}</td><td>${new Date(user.lastActive).toLocaleString()}</td>`;
                     userList.appendChild(row);
                 });
             }, 1000);
@@ -55,9 +64,9 @@
         async function exportUserData() {
             const data = await syncData('get');
             const users = data.users || {};
-            let csv = 'User ID,Phone,Balance\n';
+            let csv = 'User ID,Phone,Balance,Last Active\n';
             Object.entries(users).forEach(([id, user]) => {
-                csv += `${id},${user.phone},${user.balance}\n`;
+                csv += `${id},${user.phone},${user.balance},${new Date(user.lastActive).toLocaleString()}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
