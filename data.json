@@ -1,0 +1,10 @@
+{
+    "users": {},
+    "requests": {},
+    "messages": [],
+    "game": {
+        "state": "betting",
+        "timeLeft": 30,
+        "onlinePlayers": 0
+    }
+}
