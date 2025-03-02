@@ -34,7 +34,7 @@
         const REPO = 'casino-roulette';
         const OWNER = 'Opper125';
         const FILE_PATH = 'data.json';
-        const BASE_URL = 'http://casino-roulette.opper.com';
+        const BASE_URL = 'https://casino-opper.netlify.app';
 
         async function syncData(action, updates = {}) {
             try {
@@ -46,7 +46,7 @@
                 return await response.json();
             } catch (error) {
                 console.error('Sync Error:', error);
-                return { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0 } };
+                return { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null } };
             }
         }
 
@@ -108,7 +108,7 @@
                 users: {},
                 requests: {},
                 messages: [],
-                game: { state: 'betting', timeLeft: 30, onlinePlayers: 0 }
+                game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null }
             });
             alert('Server အသစ်စတင်ပြီးပါပြီ။');
         }
