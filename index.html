@@ -3,21 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Casino Roulette - Game Zone Myanmar</title>
+    <title>Casino Roulette - Powered by Opper</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #ffd700; margin: 0; padding: 10px; }
-        .game-container { max-width: 400px; margin: auto; background: rgba(30, 30, 30, 0.9); padding: 15px; border-radius: 10px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); text-align: center; }
-        h1 { font-size: 1.5em; text-shadow: 0 0 10px #ffd700; }
-        .bet-table { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin: 10px 0; }
-        .bet-area { padding: 8px; background: #333; border: 2px solid #ffd700; cursor: pointer; border-radius: 5px; }
-        .bet-area:hover { background: #555; }
-        .chip { width: 40px; height: 40px; border-radius: 50%; background: #ffd700; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; margin: 5px; }
+        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #1a1a1a, #2c003e); color: #ffd700; margin: 0; padding: 10px; }
+        .game-container { max-width: 400px; margin: auto; background: rgba(30, 30, 30, 0.9); padding: 15px; border-radius: 15px; box-shadow: 0 0 30px rgba(255, 215, 0, 0.7); text-align: center; }
+        h1 { font-size: 1.8em; text-shadow: 0 0 15px #ffd700; }
+        .bet-table { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin: 15px 0; }
+        .bet-area { padding: 10px; background: #444; border: 2px solid #ffd700; cursor: pointer; border-radius: 8px; transition: background 0.3s; }
+        .bet-area:hover { background: #666; }
+        .chip { width: 45px; height: 45px; border-radius: 50%; background: linear-gradient(45deg, #ffd700, #b8860b); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; margin: 5px; box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
         .chip.active { border: 3px solid #fff; }
-        button { padding: 8px 15px; background: #ffd700; color: #000; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button { padding: 10px 20px; background: linear-gradient(45deg, #ffd700, #b8860b); color: #000; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; transition: transform 0.2s; }
+        button:hover { transform: scale(1.05); }
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: none; justify-content: center; align-items: center; }
-        .modal-content { background: #1e1e1e; padding: 20px; border-radius: 10px; color: #ffd700; width: 90%; max-width: 400px; }
-        .support-section { margin-top: 20px; background: #333; padding: 10px; border-radius: 5px; }
-        textarea { width: 100%; padding: 10px; border-radius: 5px; }
+        .modal-content { background: #1e1e1e; padding: 25px; border-radius: 15px; color: #ffd700; width: 90%; max-width: 400px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
+        .support-section { margin-top: 20px; background: #333; padding: 15px; border-radius: 10px; }
+        textarea { width: 100%; padding: 10px; border-radius: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; }
+        input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; }
     </style>
 </head>
 <body>
@@ -78,15 +80,22 @@
         const REPO = 'casino-roulette';
         const OWNER = 'Opper125';
         const FILE_PATH = 'data.json';
+        const BASE_URL = 'http://casino-roulette.opper.com';
 
         let userId, phone, balance = 0, bets = {}, timeLeft = 30, gameState = 'betting';
 
         async function syncData(action, updates = {}) {
-            const response = await fetch('/.netlify/functions/sync', {
-                method: 'POST',
-                body: JSON.stringify({ action, updates, repo: REPO, owner: OWNER, path: FILE_PATH })
-            });
-            return await response.json();
+            try {
+                const response = await fetch(`${BASE_URL}/.netlify/functions/sync`, {
+                    method: 'POST',
+                    body: JSON.stringify({ action, updates, repo: REPO, owner: OWNER, path: FILE_PATH })
+                });
+                if (!response.ok) throw new Error('Sync failed');
+                return await response.json();
+            } catch (error) {
+                console.error('Sync Error:', error);
+                return { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0 } };
+            }
         }
 
         async function login() {
@@ -99,9 +108,9 @@
             userId = btoa(phone + pin);
             const data = await syncData('get');
             const users = data.users || {};
-            let userData = users[userId] || { balance: 10000, bets: {}, phone };
+            let userData = users[userId] || { balance: 10000, bets: {}, phone, lastActive: Date.now() };
             balance = userData.balance;
-            bets = userData.bets;
+            bets = userData.bets || {};
             users[userId] = userData;
             data.game.onlinePlayers = (data.game.onlinePlayers || 0) + 1;
             await syncData('set', { users, game: data.game });
@@ -110,15 +119,14 @@
             syncGameState();
         }
 
-        function updateUI() {
+        async function updateUI() {
             document.getElementById('balance-value').innerHTML = balance;
             document.getElementById('timer').innerHTML = `Time Left: ${timeLeft}s`;
-            syncData('get').then(data => {
-                document.getElementById('online-players').innerHTML = `Online Players: ${data.game.onlinePlayers || 0}`;
-                if (gameState === 'betting') document.getElementById('result').innerHTML = "🎲 Bet တင်ပါ!";
-                else if (gameState === 'spinning') document.getElementById('result').innerHTML = "⏳ လှည့်နေပါတယ်...";
-                else if (gameState === 'result') showResult(data);
-            });
+            const data = await syncData('get');
+            document.getElementById('online-players').innerHTML = `Online Players: ${data.game.onlinePlayers || 0}`;
+            if (gameState === 'betting') document.getElementById('result').innerHTML = "🎲 Bet တင်ပါ!";
+            else if (gameState === 'spinning') document.getElementById('result').innerHTML = "⏳ လှည့်နေပါတယ်...";
+            else if (gameState === 'result') await showResult(data);
         }
 
         function syncGameState() {
@@ -139,9 +147,9 @@
                         timeLeft = 30;
                     }
                 }
-                game = { state: gameState, timeLeft, onlinePlayers: game.onlinePlayers };
+                game = { state: gameState, timeLeft, onlinePlayers: game.onlinePlayers, lastUpdate: Date.now() };
                 await syncData('set', { game });
-                updateUI();
+                await updateUI();
             }, 1000);
         }
 
@@ -163,7 +171,7 @@
             balance -= chip;
             bets[areaId] = (bets[areaId] || 0) + chip;
             const data = await syncData('get');
-            data.users[userId] = { balance, bets, phone };
+            data.users[userId] = { balance, bets, phone, lastActive: Date.now() };
             await syncData('set', data);
             updateUI();
         }
@@ -180,7 +188,7 @@
             let winnings = bets[result.number] ? bets[result.number] * 36 : 0;
             balance += winnings;
             bets = {};
-            data.users[userId] = { balance, bets, phone };
+            data.users[userId] = { balance, bets, phone, lastActive: Date.now() };
             await syncData('set', data);
             document.getElementById('result').innerHTML = winnings ? `🎉 အနိုင်ရ: ${winnings} MMK` : "😢 အရှုံးပါ";
         }
@@ -195,7 +203,7 @@
             if (amount < 100 || transactionId.length !== 6) return;
             const data = await syncData('get');
             const requestId = `${userId}_${Date.now()}`;
-            data.requests[requestId] = { userId, phone, amount, transactionId, type: 'deposit', status: 'pending' };
+            data.requests[requestId] = { userId, phone, amount, transactionId, type: 'deposit', status: 'pending', timestamp: Date.now() };
             await syncData('set', data);
             closeModal('depositModal');
         }
@@ -208,7 +216,7 @@
             const data = await syncData('get');
             data.users[userId].balance = balance;
             const requestId = `${userId}_${Date.now()}`;
-            data.requests[requestId] = { userId, phone, amount, withdrawPhone, type: 'withdraw', status: 'pending' };
+            data.requests[requestId] = { userId, phone, amount, withdrawPhone, type: 'withdraw', status: 'pending', timestamp: Date.now() };
             await syncData('set', data);
             closeModal('withdrawModal');
             updateUI();
