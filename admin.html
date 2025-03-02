@@ -30,7 +30,6 @@
     </div>
 
     <script>
-        const GITHUB_TOKEN = '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';
         const REPO = 'casino-roulette';
         const OWNER = 'Opper125';
         const FILE_PATH = 'data.json';
@@ -38,7 +37,7 @@
         async function syncData(action, updates = {}) {
             const response = await fetch('/.netlify/functions/sync', {
                 method: 'POST',
-                body: JSON.stringify({ action, updates, token: GITHUB_TOKEN, repo: REPO, owner: OWNER, path: FILE_PATH })
+                body: JSON.stringify({ action, updates, repo: REPO, owner: OWNER, path: FILE_PATH })
             });
             return await response.json();
         }
