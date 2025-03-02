@@ -5,15 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Casino Roulette</title>
     <style>
-        body { font-family: 'Arial', sans-serif; background: #1a1a1a; color: #ffd700; margin: 0; padding: 20px; height: 100vh; display: flex; justify-content: center; align-items: center; }
-        .container { max-width: 800px; background: rgba(30, 30, 30, 0.95); padding: 20px; border-radius: 15px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); text-align: center; }
+        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #ffd700; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: rgba(30, 30, 30, 0.95); padding: 20px; border-radius: 10px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); text-align: center; }
         h1 { text-shadow: 0 0 10px #ffd700; }
         .request { padding: 10px; margin: 5px; background: #333; border: 2px solid #ffd700; border-radius: 5px; }
         button { padding: 8px 15px; background: #ffd700; color: #000; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        .support-section { margin-top: 20px; background: #333; padding: 10px; border-radius: 5px; }
+        .chat-box { background: #444; padding: 10px; margin: 5px; border-radius: 5px; text-align: left; }
     </style>
-    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-analytics.js"></script>
 </head>
 <body>
     <div class="container">
@@ -22,59 +21,36 @@
         <div id="online-players">Online Players: 0</div>
         <div id="deposit-requests"><h3>Deposit Requests</h3></div>
         <div id="withdraw-requests"><h3>Withdraw Requests</h3></div>
+        <div class="support-section">
+            <h3>📞 Customer Support Messages</h3>
+            <div id="support-messages"></div>
+        </div>
         <button onclick="window.open('user-info.html')">👤 User Info</button>
-        <button onclick="window.open('customer.html')">📞 Support</button>
         <button onclick="resetServer()">🔄 Reset Server</button>
     </div>
 
     <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyBlZ5wL6b_0wpcM6VEOTz-KQOYH-3E-peg",
-            authDomain: "casino-roulette-opper.firebaseapp.com",
-            projectId: "casino-roulette-opper",
-            storageBucket: "casino-roulette-opper.firebasestorage.app",
-            messagingSenderId: "444515283629",
-            appId: "1:444515283629:web:343c7e50b8b25cd5dbcc24",
-            measurementId: "G-QE8SNQ5HQQ",
-            databaseURL: "https://casino-roulette-opper-default-rtdb.asia-southeast1.firebasedatabase.app/"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-        const analytics = firebase.analytics();
+        const GITHUB_TOKEN = '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';
+        const REPO = 'casino-roulette';
+        const OWNER = 'Opper125';
+        const FILE_PATH = 'data.json';
 
-        function manageGameServer() {
-            db.ref('game').once('value', snap => {
-                let gameData = snap.val() || { state: 'betting', timeLeft: 30, onlinePlayers: 0, isRunning: true };
-                if (gameData.timeLeft > 0) {
-                    gameData.timeLeft--;
-                } else {
-                    if (gameData.state === 'betting') {
-                        gameData.state = 'spinning';
-                        gameData.finalAngle = Math.floor(Math.random() * 360);
-                        gameData.timeLeft = 8;
-                    } else if (gameData.state === 'spinning') {
-                        gameData.result = { number: Math.floor(Math.random() * 36) + 1 };
-                        gameData.state = 'result';
-                        gameData.timeLeft = 2;
-                    } else {
-                        gameData.state = 'betting';
-                        gameData.timeLeft = 30;
-                        delete gameData.result;
-                    }
-                }
-                db.ref('users').once('value', snap => {
-                    gameData.onlinePlayers = snap.val() ? Object.keys(snap.val()).length : 0;
-                    db.ref('game').set(gameData);
-                    document.getElementById('state').innerHTML = gameData.state;
-                    document.getElementById('timeLeft').innerHTML = `${gameData.timeLeft}s`;
-                    document.getElementById('online-players').innerHTML = `Online Players: ${gameData.onlinePlayers}`;
-                });
+        async function syncData(action, updates = {}) {
+            const response = await fetch('/.netlify/functions/sync', {
+                method: 'POST',
+                body: JSON.stringify({ action, updates, token: GITHUB_TOKEN, repo: REPO, owner: OWNER, path: FILE_PATH })
             });
+            return await response.json();
         }
 
-        function syncRequests() {
-            db.ref('requests').on('value', snap => {
-                const requests = snap.val() || {};
+        function manageGameServer() {
+            setInterval(async () => {
+                const data = await syncData('get');
+                document.getElementById('state').innerHTML = data.game.state;
+                document.getElementById('timeLeft').innerHTML = `${data.game.timeLeft}s`;
+                document.getElementById('online-players').innerHTML = `Online Players: ${data.game.onlinePlayers || 0}`;
+
+                const requests = data.requests || {};
                 const depositDiv = document.getElementById('deposit-requests');
                 const withdrawDiv = document.getElementById('withdraw-requests');
                 depositDiv.innerHTML = '<h3>Deposit Requests</h3>';
@@ -91,33 +67,46 @@
                         req.type === 'deposit' ? depositDiv.appendChild(div) : withdrawDiv.appendChild(div);
                     }
                 });
-            });
-        }
 
-        function approveRequest(id, type) {
-            db.ref('requests/' + id).update({ status: 'approved' });
-            if (type === 'deposit') {
-                db.ref('requests/' + id).once('value', snap => {
-                    const req = snap.val();
-                    db.ref('users/' + req.userId).once('value', snap => {
-                        const user = snap.val();
-                        db.ref('users/' + req.userId).update({ balance: user.balance + req.amount });
-                    });
+                const messages = data.messages || [];
+                const supportDiv = document.getElementById('support-messages');
+                supportDiv.innerHTML = '';
+                messages.forEach(msg => {
+                    const div = document.createElement('div');
+                    div.className = 'chat-box';
+                    div.innerHTML = `<b>User ${msg.phone}:</b> ${msg.message} <br><small>${new Date(msg.timestamp).toLocaleString()}</small>`;
+                    supportDiv.appendChild(div);
                 });
+            }, 1000);
+        }
+
+        async function approveRequest(id, type) {
+            const data = await syncData('get');
+            const req = data.requests[id];
+            if (type === 'deposit') {
+                data.users[req.userId].balance += req.amount;
             }
+            req.status = 'approved';
+            await syncData('set', data);
         }
 
-        function rejectRequest(id) {
-            db.ref('requests/' + id).update({ status: 'rejected' });
+        async function rejectRequest(id) {
+            const data = await syncData('get');
+            data.requests[id].status = 'rejected';
+            await syncData('set', data);
         }
 
-        function resetServer() {
-            db.ref('/').set({ game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, isRunning: true } });
+        async function resetServer() {
+            await syncData('set', {
+                users: {},
+                requests: {},
+                messages: [],
+                game: { state: 'betting', timeLeft: 30, onlinePlayers: 0 }
+            });
             alert('Server အသစ်စတင်ပြီးပါပြီ။');
         }
 
-        setInterval(manageGameServer, 1000);
-        syncRequests();
+        manageGameServer();
     </script>
 </body>
 </html>
