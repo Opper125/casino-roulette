@@ -1,10 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-// Netlify Functions မှာ ဒေတာကို သိမ်းဖို့ JSON ဖိုင်တစ်ခု အသုံးပြုမယ်
 const DATA_FILE = path.join(__dirname, 'casino-data.json');
 
-// ဒေတာဖတ်ဖို့နဲ့ သိမ်းဖို့ Helper Functions
 function readData() {
   if (!fs.existsSync(DATA_FILE)) {
     const defaultData = { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] }, transactions: {} };
