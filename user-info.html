@@ -32,7 +32,7 @@
 
         function loadData() {
             const data = JSON.parse(localStorage.getItem('casinoData') || '{}');
-            return data.game ? data : { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false } };
+            return data.game ? data : { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] } };
         }
 
         function saveData(data) {
