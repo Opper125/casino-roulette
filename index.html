@@ -27,13 +27,13 @@
         #history { display: flex; justify-content: center; margin: 10px 0; }
         .history-item { width: 30px; height: 30px; border-radius: 50%; margin: 0 5px; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: opacity 0.5s; }
         .history-item.old { opacity: 0.3; }
-        #ball { position: absolute; width: 15px; height: 15px; background: #fff; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); animation: bounce 0.5s infinite alternate; }
+        #ball { position: absolute; width: 15px; height: 15px; background: #fff; border-radius: 50%; animation: spinBall 2s infinite linear; }
         .chat-log { max-height: 200px; overflow-y: auto; margin-top: 10px; }
         .chat-message { background: #444; padding: 10px; margin: 5px 0; border-radius: 5px; text-align: left; }
         .chat-message.admin { background: #555; text-align: right; }
         #win-animation { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2em; color: #00ff00; text-shadow: 0 0 10px #00ff00; animation: winPulse 1s infinite; display: none; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes bounce { 0% { transform: translate(-50%, -50%) scale(1); } 100% { transform: translate(-50%, -50%) scale(1.2); } }
+        @keyframes spinBall { 0% { transform: translate(-50%, -50%) rotate(0deg) translateX(120px) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg) translateX(120px) rotate(-360deg); } }
         @keyframes winPulse { 0% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.2); } 100% { transform: translate(-50%, -50%) scale(1); } }
     </style>
 </head>
@@ -109,7 +109,7 @@
     <script>
         const BASE_URL = 'https://casino-opper.netlify.app';
 
-        let userId, phone, balance = 0, bets = {}, timeLeft = 30, gameState = 'betting', wheelAngle = 0, totalBet = 0, history = [];
+        let userId, phone, balance = 0, bets = {}, timeLeft = 30, gameState = 'betting', wheelAngle = 0, totalBet = 0, history = [], ballAngle = 0;
 
         function loadData() {
             const data = JSON.parse(localStorage.getItem('casinoData') || '{}');
@@ -239,7 +239,7 @@
 
         function setupBetTable() {
             const table = [
-                ...Array.from({ length: 36 }, (_, i) => i + 1),
+                ...Array.from({ length: 37 }, (_, i) => i), // 0-36
                 'red', 'black', 'odd', 'even', '1-18', '19-36'
             ];
             table.forEach(id => {
@@ -247,6 +247,7 @@
                 div.className = 'bet-area';
                 div.id = `bet-${id}`;
                 div.innerHTML = id;
+                if (id === 0) div.style.backgroundColor = '#00ff00'; // Green for 0
                 div.onclick = () => placeBet(id);
                 document.getElementById('betTable').appendChild(div);
             });
@@ -312,7 +313,7 @@
             data.users[userId].bets = bets;
             data.users[userId].totalBet = totalBet;
             data.game.history = data.game.history || [];
-            data.game.history.unshift({ number: result, color: result % 2 === 0 && result !== 0 ? '#ff0000' : '#000000' });
+            data.game.history.unshift({ number: result, color: result === 0 ? '#00ff00' : (result % 2 === 0 ? '#ff0000' : '#000000') });
             if (data.game.history.length > 10) data.game.history.pop();
             await syncData('set', data);
             document.getElementById('result').innerHTML = winnings ? `🎉 အနိုင်ရ: ${winnings} MMK (Result: ${result})` : `😢 အရှုံးပါ (Result: ${result})`;
@@ -329,7 +330,7 @@
             const ctx = canvas.getContext('2d');
             const radius = canvas.width / 2;
             const numbers = Array.from({ length: 37 }, (_, i) => i);
-            const colors = ['#ff0000', '#000000'];
+            const colors = numbers.map(num => num === 0 ? '#00ff00' : (num % 2 === 0 ? '#ff0000' : '#000000'));
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.save();
@@ -341,7 +342,7 @@
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
                 ctx.arc(0, 0, radius, angle, angle + (360 / 37) * Math.PI / 180);
-                ctx.fillStyle = colors[i % 2];
+                ctx.fillStyle = colors[i];
                 ctx.fill();
                 ctx.strokeStyle = '#ffd700';
                 ctx.stroke();
@@ -357,6 +358,8 @@
             if (result !== null && gameState === 'result') {
                 const targetAngle = (result * 360 / 37);
                 wheelAngle = targetAngle;
+                const ball = document.getElementById('ball');
+                ball.style.transform = `translate(-50%, -50%) rotate(${targetAngle}deg) translateX(${radius - 20}px) rotate(-${targetAngle}deg)`;
             }
 
             ctx.restore();
@@ -364,7 +367,11 @@
 
         function spinWheel(result) {
             wheelAngle += 20;
+            ballAngle += 25;
             drawWheel(result);
+            const ball = document.getElementById('ball');
+            const radius = document.getElementById('wheel').width / 2;
+            ball.style.transform = `translate(-50%, -50%) rotate(${ballAngle}deg) translateX(${radius - 20}px) rotate(-${ballAngle}deg)`;
             if (gameState === 'spinning') requestAnimationFrame(() => spinWheel(result));
         }
 
