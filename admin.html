@@ -82,6 +82,11 @@
             return data;
         }
 
+        function resetDataOnDeploy() {
+            localStorage.setItem('casinoData', JSON.stringify({ users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] } }));
+            localStorage.removeItem('loggedInUser');
+        }
+
         function manageGameServer() {
             setInterval(async () => {
                 const data = await syncData('get');
@@ -131,6 +136,7 @@
         async function approveRequest(id, type) {
             const data = await syncData('get');
             const req = data.requests[id];
+            if (!req || req.userId !== data.users[req.userId]?.userId) return; // Verify request integrity
             if (type === 'deposit') {
                 data.users[req.userId].balance += req.amount;
             } else if (type === 'withdraw') {
@@ -143,6 +149,7 @@
         async function rejectRequest(id) {
             const data = await syncData('get');
             const req = data.requests[id];
+            if (!req || req.userId !== data.users[req.userId]?.userId) return; // Verify request integrity
             if (req.type === 'withdraw') {
                 data.users[req.userId].balance += req.amount; // Refund on reject
             }
@@ -217,6 +224,7 @@
             });
         }
 
+        resetDataOnDeploy(); // Reset data on page load
         manageGameServer();
     </script>
 </body>
