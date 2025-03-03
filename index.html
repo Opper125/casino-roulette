@@ -26,11 +26,13 @@
         #history { display: flex; justify-content: center; margin: 10px 0; }
         .history-item { width: 30px; height: 30px; border-radius: 50%; margin: 0 5px; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: opacity 0.5s; }
         .history-item.old { opacity: 0.3; }
+        #ball { position: absolute; width: 15px; height: 15px; background: #fff; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); animation: bounce 0.5s infinite alternate; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes bounce { 0% { transform: translate(-50%, -50%) scale(1); } 100% { transform: translate(-50%, -50%) scale(1.2); } }
     </style>
 </head>
 <body>
-    <div class="game-container">
+    <div class="game-container" id="game-container">
         <h1>🎰 Casino Roulette 🎰</h1>
         <div id="online-players">Online Players: 0</div>
         <div id="balance">Balance: <span id="balance-value">0</span> MMK</div>
@@ -38,9 +40,11 @@
         <div class="money-controls">
             <button onclick="showDepositModal()">💸 Deposit</button>
             <button onclick="showWithdrawModal()">🏦 Withdraw</button>
+            <button onclick="logout()">🚪 Logout</button>
         </div>
         <div class="roulette-wheel">
             <canvas id="wheel" width="300" height="300"></canvas>
+            <div id="ball" style="display: none;"></div>
             <div id="countdown"></div>
         </div>
         <div class="timer" id="timer">Time Left: 30s</div>
@@ -96,7 +100,7 @@
 
         function loadData() {
             const data = JSON.parse(localStorage.getItem('casinoData') || '{}');
-            return data.game ? data : { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false } };
+            return data.game ? data : { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] } };
         }
 
         function saveData(data) {
@@ -113,6 +117,23 @@
             return data;
         }
 
+        function checkLoggedIn() {
+            const loggedInUser = localStorage.getItem('loggedInUser');
+            if (loggedInUser) {
+                userId = loggedInUser;
+                const data = loadData();
+                const user = data.users[userId];
+                if (user) {
+                    phone = user.phone;
+                    balance = user.balance;
+                    bets = user.bets || {};
+                    totalBet = user.totalBet || 0;
+                    document.getElementById('loginModal').style.display = 'none';
+                    syncGameState();
+                }
+            }
+        }
+
         async function login() {
             phone = document.getElementById('phone').value;
             const pin = document.getElementById('pin').value;
@@ -127,24 +148,30 @@
                 return;
             }
             const users = data.users || {};
-            let userData = users[userId] || { balance: 10000, bets: {}, phone, lastActive: Date.now(), warnings: 0, banUntil: 0 };
+            let userData = users[userId] || { balance: 10000, bets: {}, phone, lastActive: Date.now(), warnings: 0, banUntil: 0, totalBet: 0 };
             balance = userData.balance;
             bets = userData.bets || {};
             totalBet = userData.totalBet || 0;
             users[userId] = userData;
             data.game.onlinePlayers = (data.game.onlinePlayers || 0) + 1;
             await syncData('set', { users, game: data.game });
-            updateUI();
+            localStorage.setItem('loggedInUser', userId);
             document.getElementById('loginModal').style.display = 'none';
+            updateUI();
             syncGameState();
             drawWheel();
         }
 
+        function logout() {
+            localStorage.removeItem('loggedInUser');
+            window.location.reload();
+        }
+
         async function updateUI() {
+            const data = await syncData('get');
             document.getElementById('balance-value').innerHTML = balance;
             document.getElementById('total-bet-value').innerHTML = totalBet;
             document.getElementById('timer').innerHTML = `Time Left: ${timeLeft}s`;
-            const data = await syncData('get');
             document.getElementById('online-players').innerHTML = `Online Players: ${data.game.onlinePlayers || 0}`;
             if (gameState === 'betting') {
                 document.getElementById('result').innerHTML = timeLeft <= 5 ? "⏰ Betting Closed!" : "🎲 Bet တင်ပါ!";
@@ -152,8 +179,10 @@
                 else document.getElementById('countdown').innerHTML = '';
             } else if (gameState === 'spinning') {
                 document.getElementById('result').innerHTML = "⏳ လှည့်နေပါတယ်...";
+                document.getElementById('ball').style.display = 'block';
                 spinWheel(data.game.result);
             } else if (gameState === 'result') {
+                document.getElementById('ball').style.display = 'none';
                 await showResult(data);
             }
             updateHistory(data.game.history || []);
@@ -193,23 +222,23 @@
         }
 
         function setupBetTable() {
-            const table = Array.from({ length: 36 }, (_, i) => i + 1);
-            table.forEach(num => {
+            const table = [...Array.from({ length: 36 }, (_, i) => i + 1), 'red', 'black', 'odd', 'even', '1-18', '19-36'];
+            table.forEach(id => {
                 const div = document.createElement('div');
                 div.className = 'bet-area';
-                div.id = `bet-${num}`;
-                div.innerHTML = num;
-                div.onclick = () => placeBet(num);
+                div.id = `bet-${id}`;
+                div.innerHTML = id;
+                div.onclick = () => placeBet(id);
                 document.getElementById('betTable').appendChild(div);
             });
         }
 
-        async function placeBet(num) {
+        async function placeBet(id) {
             if (gameState !== 'betting' || timeLeft <= 5) return;
             const chip = parseInt(document.querySelector('.chip.active')?.dataset.value);
             if (!chip || balance < chip) return;
             balance -= chip;
-            bets[num] = (bets[num] || 0) + chip;
+            bets[id] = (bets[id] || 0) + chip;
             totalBet += chip;
             const data = await syncData('get');
             data.users[userId] = { balance, bets, phone, lastActive: Date.now(), warnings: data.users[userId].warnings, banUntil: data.users[userId].banUntil, totalBet };
@@ -228,13 +257,22 @@
 
         async function showResult(data) {
             const result = data.game.result;
-            let winnings = bets[result] ? bets[result] * 36 : 0;
+            let winnings = 0;
+            if (!isNaN(result)) {
+                if (bets[result]) winnings += bets[result] * 36; // Single number
+                if (bets['red'] && (result % 2 === 0 && result !== 0)) winnings += bets['red'] * 2;
+                if (bets['black'] && (result % 2 === 1)) winnings += bets['black'] * 2;
+                if (bets['odd'] && (result % 2 === 1)) winnings += bets['odd'] * 2;
+                if (bets['even'] && (result % 2 === 0 && result !== 0)) winnings += bets['even'] * 2;
+                if (bets['1-18'] && result <= 18) winnings += bets['1-18'] * 2;
+                if (bets['19-36'] && result > 18) winnings += bets['19-36'] * 2;
+            }
             balance += winnings;
             bets = {};
             totalBet = 0;
             data.users[userId] = { balance, bets, phone, lastActive: Date.now(), warnings: data.users[userId].warnings, banUntil: data.users[userId].banUntil, totalBet };
             data.game.history = data.game.history || [];
-            data.game.history.unshift({ number: result, color: result % 2 === 0 ? '#ff0000' : '#000000' });
+            data.game.history.unshift({ number: result, color: result % 2 === 0 && result !== 0 ? '#ff0000' : '#000000' });
             if (data.game.history.length > 10) data.game.history.pop();
             await syncData('set', data);
             document.getElementById('result').innerHTML = winnings ? `🎉 အနိုင်ရ: ${winnings} MMK (Result: ${result})` : `😢 အရှုံးပါ (Result: ${result})`;
@@ -270,8 +308,8 @@
                 ctx.restore();
             });
 
-            if (result !== null) {
-                const targetAngle = (result * 360 / 37) + (Math.random() * 360);
+            if (result !== null && gameState === 'result') {
+                const targetAngle = (result * 360 / 37);
                 wheelAngle = targetAngle;
             }
 
@@ -324,6 +362,7 @@
             data.requests[requestId] = { userId, phone, amount, transactionId, type: 'deposit', status: 'pending', timestamp: Date.now() };
             await syncData('set', data);
             closeModal('depositModal');
+            updateUI();
         }
 
         async function submitWithdraw() {
@@ -348,8 +387,10 @@
             await syncData('set', data);
             document.getElementById('support-message').value = '';
             alert('မက်ဆေ့ချ် ပို့ပြီးပါပြီ!');
+            updateUI();
         }
 
+        checkLoggedIn();
         setupBetTable();
     </script>
 </body>
