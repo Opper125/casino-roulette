@@ -15,6 +15,13 @@
         .chat-box { background: #444; padding: 10px; margin: 5px; border-radius: 5px; text-align: left; }
         #result-control { margin: 20px 0; }
         select { padding: 10px; background: #222; color: #ffd700; border: 1px solid #ffd700; border-radius: 5px; }
+        #game-log { margin-top: 20px; }
+        #support-users { margin-top: 20px; }
+        .support-user { cursor: pointer; padding: 10px; background: #444; margin: 5px; border-radius: 8px; }
+        .support-user:hover { background: #666; }
+        .chat-log { max-height: 200px; overflow-y: auto; margin-top: 10px; }
+        .chat-message { background: #444; padding: 10px; margin: 5px 0; border-radius: 5px; text-align: left; }
+        .chat-message.admin { background: #555; text-align: right; }
     </style>
 </head>
 <body>
@@ -33,9 +40,19 @@
         </div>
         <div id="deposit-requests"><h3>Deposit Requests</h3></div>
         <div id="withdraw-requests"><h3>Withdraw Requests</h3></div>
-        <div class="support-section">
-            <h3>📞 Customer Support Messages</h3>
-            <div id="support-messages"></div>
+        <div id="game-log">
+            <h3>ဂိမ်းမှတ်တမ်း</h3>
+            <div id="game-history"></div>
+        </div>
+        <div id="support-users">
+            <h3>Customer Support</h3>
+            <div id="user-list"></div>
+            <div id="support-chat" style="display: none;">
+                <h4>Chat with <span id="chat-user-id"></span></h4>
+                <div class="chat-log" id="admin-chat-log"></div>
+                <textarea id="admin-support-input" placeholder="စာပြန်ရေးပါ..."></textarea>
+                <button onclick="sendAdminSupportMessage()">📩 ပို့မည်</button>
+            </div>
         </div>
         <button onclick="window.open('user-info.html')">👤 User Info</button>
         <button onclick="resetServer()">🔄 Reset Server</button>
@@ -43,6 +60,8 @@
 
     <script>
         const BASE_URL = 'https://casino-opper.netlify.app';
+
+        let selectedUserId = null;
 
         function loadData() {
             const data = JSON.parse(localStorage.getItem('casinoData') || '{}');
@@ -88,15 +107,19 @@
                     }
                 });
 
-                const messages = data.messages || [];
-                const supportDiv = document.getElementById('support-messages');
-                supportDiv.innerHTML = '';
-                messages.forEach(msg => {
-                    const div = document.createElement('div');
-                    div.className = 'chat-box';
-                    div.innerHTML = `<b>User ${msg.phone}:</b> ${msg.message} <br><small>${new Date(msg.timestamp).toLocaleString()}</small>`;
-                    supportDiv.appendChild(div);
+                const userList = document.getElementById('user-list');
+                userList.innerHTML = '';
+                Object.entries(data.users || {}).forEach(([id, user]) => {
+                    if (user.messages && user.messages.length > 0) {
+                        const div = document.createElement('div');
+                        div.className = 'support-user';
+                        div.innerHTML = `User: ${id.substr(0, 8)}... (Phone: ${user.phone})`;
+                        div.onclick = () => openSupportChat(id);
+                        userList.appendChild(div);
+                    }
                 });
+
+                updateGameHistory(data.game.history || []);
             }, 1000);
         }
 
@@ -117,7 +140,6 @@
             }
             req.status = 'approved';
             await syncData('set', data);
-            updateUI();
         }
 
         async function rejectRequest(id) {
@@ -128,7 +150,6 @@
             }
             req.status = 'rejected';
             await syncData('set', data);
-            updateUI();
         }
 
         async function setResult() {
@@ -150,8 +171,54 @@
             alert('Server အသစ်စတင်ပြီးပါပြီ။');
         }
 
-        function updateUI() {
-            // No-op in admin, as index.html handles UI updates
+        function openSupportChat(userId) {
+            selectedUserId = userId;
+            document.getElementById('support-chat').style.display = 'block';
+            document.getElementById('chat-user-id').innerHTML = userId.substr(0, 8) + '...';
+            updateAdminChatLog();
+        }
+
+        async function sendAdminSupportMessage() {
+            const message = document.getElementById('admin-support-input').value;
+            if (!message || !selectedUserId) return;
+            const data = await syncData('get');
+            data.users[selectedUserId].messages = data.users[selectedUserId].messages || [];
+            data.users[selectedUserId].messages.push({ from: 'admin', text: message, timestamp: Date.now() });
+            await syncData('set', data);
+            document.getElementById('admin-support-input').value = '';
+            updateAdminChatLog();
+        }
+
+        function updateAdminChatLog() {
+            const data = loadData();
+            const userMessages = data.users[selectedUserId]?.messages || [];
+            const chatLog = document.getElementById('admin-chat-log');
+            chatLog.innerHTML = '';
+            userMessages.forEach(msg => {
+                const div = document.createElement('div');
+                div.className = `chat-message ${msg.from === 'admin' ? 'admin' : ''}`;
+                div.innerHTML = `${msg.text} <br><small>${new Date(msg.timestamp).toLocaleString()}</small>`;
+                chatLog.appendChild(div);
+            });
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+
+        function updateGameHistory(history) {
+            const historyDiv = document.getElementById('game-history');
+            historyDiv.innerHTML = '';
+            history.forEach(item => {
+                const div = document.createElement('div');
+                div.style.backgroundColor = item.color;
+                div.style.display = 'inline-block';
+                div.style.width = '30px';
+                div.style.height = '30px';
+                div.style.borderRadius = '50%';
+                div.style.margin = '0 5px';
+                div.style.textAlign = 'center';
+                div.style.lineHeight = '30px';
+                div.innerHTML = item.number;
+                historyDiv.appendChild(div);
+            });
         }
 
         manageGameServer();
