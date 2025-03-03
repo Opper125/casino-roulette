@@ -30,6 +30,7 @@
         <div id="game-status">Game Status: <span id="state">Betting</span> | Time Left: <span id="timeLeft">30s</span></div>
         <div id="online-players">Online Players: 0</div>
         <button onclick="startGame()">▶️ Start Game</button>
+        <button onclick="stopGame()">⏹️ Stop Game</button>
         <div id="result-control">
             <h3>ကျပန်းရလဒ် ထိန်းချုပ်ရန်</h3>
             <select id="result-number">
@@ -130,6 +131,12 @@
             alert('ဂိမ်းစတင်ပြီးပါပြီ။');
         }
 
+        async function stopGame() {
+            const data = await fetchData();
+            await updateData({ game: { ...data.game, adminStarted: false, state: 'betting', timeLeft: 30, result: null } });
+            alert('ဂိမ်းရပ်တန့်ပြီးပါပြီ။');
+        }
+
         async function approveRequest(id, type) {
             const data = await fetchData();
             const req = data.requests[id];
@@ -164,6 +171,10 @@
             const result = parseInt(document.getElementById('result-number').value);
             if (isNaN(result)) return;
             const data = await fetchData();
+            if (!data.game.adminStarted) {
+                alert('ဂိမ်းကို အရင်စတင်ပါ။');
+                return;
+            }
             await updateData({ game: { ...data.game, result } });
             alert(`Result set to ${result}`);
         }
@@ -233,5 +244,6 @@
         manageGameServer();
     </script>
     <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91a9a02b9ea653bb',t:'MTc0MTAxMDA2NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+    <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91ab40425ad5afa2',t:'MTc0MTAyNzEwOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
