@@ -29,29 +29,25 @@
 
     <script>
         const BASE_URL = 'https://casino-opper.netlify.app';
+        const DATA_API = `${BASE_URL}/.netlify/functions/data`;
 
-        function loadData() {
-            return JSON.parse(localStorage.getItem('casinoData') || '{}');
+        async function fetchData() {
+            const response = await fetch(DATA_API);
+            return await response.json();
         }
 
-        function saveData(data) {
-            localStorage.setItem('casinoData', JSON.stringify(data));
-        }
-
-        async function syncData(action, updates = {}) {
-            let data = loadData();
-            if (!data.game) data = { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] } };
-            if (action === 'get') return data;
-            if (action === 'set') {
-                data = { ...data, ...updates };
-                saveData(data);
-            }
-            return data;
+        async function updateData(updates) {
+            const response = await fetch(DATA_API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+            });
+            return await response.json();
         }
 
         function updateUserInfo() {
             setInterval(async () => {
-                const data = await syncData('get');
+                const data = await fetchData();
                 const userList = document.getElementById('userList');
                 userList.innerHTML = '';
                 const users = data.users || {};
@@ -64,7 +60,7 @@
         }
 
         async function exportUserData() {
-            const data = await syncData('get');
+            const data = await fetchData();
             const users = data.users || {};
             let csv = 'User ID,Phone,Balance,Total Bet,Last Active,Warnings,Ban Until\n';
             Object.entries(users).forEach(([id, user]) => {
@@ -80,5 +76,6 @@
 
         updateUserInfo();
     </script>
+    <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91a9a02b9d3fbcd2',t:'MTc0MTAxMDA2NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
