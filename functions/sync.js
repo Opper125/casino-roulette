@@ -1,44 +1,50 @@
-const fetch = require('node-fetch');
+const fs = require('fs');
+const path = require('path');
 
-exports.handler = async (event) => {
-    const { action, updates, repo, owner, path } = JSON.parse(event.body || '{}');
-    const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+// Netlify Functions မှာ ဒေတာကို သိမ်းဖို့ JSON ဖိုင်တစ်ခု အသုံးပြုမယ်
+const DATA_FILE = path.join(__dirname, 'casino-data.json');
 
-    const headers = {
-        'Authorization': `token ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json'
-    };
+// ဒေတာဖတ်ဖို့နဲ့ သိမ်းဖို့ Helper Functions
+function readData() {
+  if (!fs.existsSync(DATA_FILE)) {
+    const defaultData = { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] }, transactions: {} };
+    fs.writeFileSync(DATA_FILE, JSON.stringify(defaultData));
+    return defaultData;
+  }
+  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+}
 
-    // Get current data from GitHub
-    const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-    const getResponse = await fetch(getUrl, { headers });
-    const fileData = await getResponse.json();
-    let currentData = JSON.parse(Buffer.from(fileData.content, 'base64').toString('utf8'));
+function writeData(data) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data));
+}
 
-    switch (action) {
-        case 'get':
-            return { statusCode: 200, body: JSON.stringify(currentData) };
-        case 'set':
-            currentData = { ...currentData, ...updates };
-            break;
-        default:
-            return { statusCode: 400, body: JSON.stringify({ error: 'Invalid action' }) };
+exports.handler = async (event, context) => {
+  try {
+    if (event.httpMethod === 'GET') {
+      const data = readData();
+      return {
+        statusCode: 200,
+        body: JSON.stringify(data),
+      };
+    } else if (event.httpMethod === 'POST') {
+      const updates = JSON.parse(event.body);
+      const data = readData();
+      const newData = { ...data, ...updates };
+      writeData(newData);
+      return {
+        statusCode: 200,
+        body: JSON.stringify(newData),
+      };
+    } else {
+      return {
+        statusCode: 405,
+        body: JSON.stringify({ error: 'Method Not Allowed' }),
+      };
     }
-
-    // Update data on GitHub
-    const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-    const content = Buffer.from(JSON.stringify(currentData, null, 2)).toString('base64');
-    const putBody = {
-        message: 'Update data.json',
-        content,
-        sha: fileData.sha
+  } catch (error) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: error.message }),
     };
-    await fetch(putUrl, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(putBody)
-    });
-
-    return { statusCode: 200, body: JSON.stringify(currentData) };
+  }
 };
