@@ -1,6 +1,17 @@
 [build]
-  publish = "."
-  functions = "functions"
+  publish = "."  # HTML ဖိုင်တွေ ထွက်လာတဲ့ နေရာ (Root Directory)
 
 [functions]
+  directory = "functions"  # Functions ဖိုင်တွေ ရှိတဲ့ နေရာ (Source Directory)
   node_bundler = "esbuild"
+
+[dev]
+  framework = "#static"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[context.production.environment]
+  NODE_VERSION = "14"  # Node.js Version သတ်မှတ်ထားပါတယ်
