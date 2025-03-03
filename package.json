@@ -1,5 +1,10 @@
 {
     "name": "casino-roulette",
     "version": "1.0.0",
-    "dependencies": {}
+    "dependencies": {
+        "netlify-lambda": "^2.0.16"
+    },
+    "scripts": {
+        "build": "netlify-lambda build functions"
+    }
 }
