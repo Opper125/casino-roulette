@@ -13,6 +13,8 @@
         button:hover { transform: scale(1.05); }
         .support-section { margin-top: 20px; background: #333; padding: 15px; border-radius: 10px; }
         .chat-box { background: #444; padding: 10px; margin: 5px; border-radius: 5px; text-align: left; }
+        #result-control { margin: 20px 0; }
+        select { padding: 10px; background: #222; color: #ffd700; border: 1px solid #ffd700; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -20,6 +22,15 @@
         <h1>🎰 Admin Dashboard 🎰</h1>
         <div id="game-status">Game Status: <span id="state">Betting</span> | Time Left: <span id="timeLeft">30s</span></div>
         <div id="online-players">Online Players: 0</div>
+        <button onclick="startGame()">▶️ Start Game</button>
+        <div id="result-control">
+            <h3>ကျပန်းရလဒ် ထိန်းချုပ်ရန်</h3>
+            <select id="result-number">
+                <option value="">ကျပန်း</option>
+                ${Array.from({ length: 37 }, (_, i) => `<option value="${i}">${i}</option>`).join('')}
+            </select>
+            <button onclick="setResult()">✔️ အတည်ပြု</button>
+        </div>
         <div id="deposit-requests"><h3>Deposit Requests</h3></div>
         <div id="withdraw-requests"><h3>Withdraw Requests</h3></div>
         <div class="support-section">
@@ -31,23 +42,25 @@
     </div>
 
     <script>
-        const REPO = 'casino-roulette';
-        const OWNER = 'Opper125';
-        const FILE_PATH = 'data.json';
         const BASE_URL = 'https://casino-opper.netlify.app';
 
+        function loadData() {
+            const data = JSON.parse(localStorage.getItem('casinoData') || '{}');
+            return data.game ? data : { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false } };
+        }
+
+        function saveData(data) {
+            localStorage.setItem('casinoData', JSON.stringify(data));
+        }
+
         async function syncData(action, updates = {}) {
-            try {
-                const response = await fetch(`${BASE_URL}/.netlify/functions/sync`, {
-                    method: 'POST',
-                    body: JSON.stringify({ action, updates, repo: REPO, owner: OWNER, path: FILE_PATH })
-                });
-                if (!response.ok) throw new Error('Sync failed');
-                return await response.json();
-            } catch (error) {
-                console.error('Sync Error:', error);
-                return { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null } };
+            let data = loadData();
+            if (action === 'get') return data;
+            if (action === 'set') {
+                data = { ...data, ...updates };
+                saveData(data);
             }
+            return data;
         }
 
         function manageGameServer() {
@@ -87,6 +100,13 @@
             }, 1000);
         }
 
+        async function startGame() {
+            const data = await syncData('get');
+            data.game.adminStarted = true;
+            await syncData('set', data);
+            alert('ဂိမ်းစတင်ပြီးပါပြီ။');
+        }
+
         async function approveRequest(id, type) {
             const data = await syncData('get');
             const req = data.requests[id];
@@ -103,12 +123,21 @@
             await syncData('set', data);
         }
 
+        async function setResult() {
+            const result = parseInt(document.getElementById('result-number').value);
+            if (isNaN(result)) return;
+            const data = await syncData('get');
+            data.game.result = result;
+            await syncData('set', data);
+            alert(`Result set to ${result}`);
+        }
+
         async function resetServer() {
             await syncData('set', {
                 users: {},
                 requests: {},
                 messages: [],
-                game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null }
+                game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false }
             });
             alert('Server အသစ်စတင်ပြီးပါပြီ။');
         }
