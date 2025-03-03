@@ -46,7 +46,7 @@
 
         function loadData() {
             const data = JSON.parse(localStorage.getItem('casinoData') || '{}');
-            return data.game ? data : { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false } };
+            return data.game ? data : { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] } };
         }
 
         function saveData(data) {
@@ -112,15 +112,23 @@
             const req = data.requests[id];
             if (type === 'deposit') {
                 data.users[req.userId].balance += req.amount;
+            } else if (type === 'withdraw') {
+                // Balance already deducted in submitWithdraw
             }
             req.status = 'approved';
             await syncData('set', data);
+            updateUI();
         }
 
         async function rejectRequest(id) {
             const data = await syncData('get');
-            data.requests[id].status = 'rejected';
+            const req = data.requests[id];
+            if (req.type === 'withdraw') {
+                data.users[req.userId].balance += req.amount; // Refund on reject
+            }
+            req.status = 'rejected';
             await syncData('set', data);
+            updateUI();
         }
 
         async function setResult() {
@@ -137,9 +145,13 @@
                 users: {},
                 requests: {},
                 messages: [],
-                game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false }
+                game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] }
             });
             alert('Server အသစ်စတင်ပြီးပါပြီ။');
+        }
+
+        function updateUI() {
+            // No-op in admin, as index.html handles UI updates
         }
 
         manageGameServer();
