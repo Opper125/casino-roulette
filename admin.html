@@ -124,9 +124,7 @@
         }
 
         async function startGame() {
-            const data = await syncData('get');
-            data.game.adminStarted = true;
-            await syncData('set', data);
+            const data = await syncData('set', { game: { ...loadData().game, adminStarted: true } });
             alert('ဂိမ်းစတင်ပြီးပါပြီ။');
         }
 
@@ -155,9 +153,7 @@
         async function setResult() {
             const result = parseInt(document.getElementById('result-number').value);
             if (isNaN(result)) return;
-            const data = await syncData('get');
-            data.game.result = result;
-            await syncData('set', data);
+            const data = await syncData('set', { game: { ...loadData().game, result } });
             alert(`Result set to ${result}`);
         }
 
