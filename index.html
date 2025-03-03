@@ -130,6 +130,11 @@
             return data;
         }
 
+        function resetDataOnDeploy() {
+            localStorage.setItem('casinoData', JSON.stringify({ users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] } }));
+            localStorage.removeItem('loggedInUser');
+        }
+
         function checkLoggedIn() {
             const loggedInUser = localStorage.getItem('loggedInUser');
             if (loggedInUser) {
@@ -239,7 +244,7 @@
 
         function setupBetTable() {
             const table = [
-                ...Array.from({ length: 37 }, (_, i) => i), // 0-36
+                ...Array.from({ length: 37 }, (_, i) => i),
                 'red', 'black', 'odd', 'even', '1-18', '19-36'
             ];
             table.forEach(id => {
@@ -461,6 +466,7 @@
             chatLog.scrollTop = chatLog.scrollHeight;
         }
 
+        resetDataOnDeploy(); // Reset data on page load
         checkLoggedIn();
         setupBetTable();
     </script>
