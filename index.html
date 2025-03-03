@@ -21,18 +21,12 @@
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: none; justify-content: center; align-items: center; }
         .modal-content { background: #1e1e1e; padding: 25px; border-radius: 15px; color: #ffd700; width: 90%; max-width: 400px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
         .support-section { margin-top: 20px; background: #333; padding: 15px; border-radius: 10px; }
-        textarea { width: 100%; padding: 10px; border-radius: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; }
-        input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; }
+        textarea, input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; }
         #countdown { font-size: 2em; color: #ff4500; text-shadow: 0 0 10px #ff4500; animation: pulse 1s infinite; }
         #history { display: flex; justify-content: center; margin: 10px 0; }
-        .history-item { width: 30px; height: 30px; border-radius: 50%; margin: 0 5px; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: opacity 0.5s; }
-        .history-item.old { opacity: 0.3; }
+        .history-item { width: 30px; height: 30px; border-radius: 50%; margin: 0 5px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
         #ball { position: absolute; width: 15px; height: 15px; background: #fff; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-        .chat-log { max-height: 200px; overflow-y: auto; margin-top: 10px; }
-        .chat-message { background: #444; padding: 10px; margin: 5px 0; border-radius: 5px; text-align: left; }
-        .chat-message.admin { background: #555; text-align: right; }
         #win-animation { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2em; color: #00ff00; text-shadow: 0 0 10px #00ff00; animation: winPulse 1s infinite; display: none; }
-        #transaction-log div { padding: 5px; margin: 5px; border-radius: 5px; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes spinBall { 0% { transform: translate(-50%, -50%) rotate(0deg) translateX(100px) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg) translateX(100px) rotate(-360deg); } }
         @keyframes winPulse { 0% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.2); } 100% { transform: translate(-50%, -50%) scale(1); } }
@@ -65,10 +59,6 @@
         </div>
         <div id="result">ကစားရန် အကောင့်ဝင်ပါ!</div>
         <div id="win-animation"></div>
-        <div id="transaction-history">
-            <h3>ငွေသွင်း/ထုတ်မှတ်တမ်း</h3>
-            <div id="transaction-log"></div>
-        </div>
     </div>
 
     <div class="modal" id="loginModal" style="display: flex;">
@@ -114,31 +104,44 @@
     <script>
         const BASE_URL = 'https://casino-opper.netlify.app';
         const DATA_API = `${BASE_URL}/.netlify/functions/data`;
+        let userId, phone, balance = 0, bets = {}, timeLeft = 30, gameState = 'betting', wheelAngle = 0, totalBet = 0;
 
-        let userId, phone, balance = 0, bets = {}, timeLeft = 30, gameState = 'betting', wheelAngle = 0, totalBet = 0, history = [], ballAngle = 0;
-
-        async function fetchData() {
-            const response = await fetch(DATA_API);
-            return await response.json();
+        async function fetchData(retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(DATA_API, { cache: 'no-store' });
+                    if (!response.ok) throw new Error('Network error');
+                    return await response.json();
+                } catch (e) {
+                    if (i === retries - 1) alert('အင်တာနက် ချိတ်ဆက်မှု ပြဿနာ။');
+                    await new Promise(res => setTimeout(res, 1000));
+                }
+            }
         }
 
-        async function updateData(updates) {
-            const response = await fetch(DATA_API, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates),
-            });
-            return await response.json();
+        async function updateData(updates, retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(DATA_API, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updates),
+                    });
+                    if (!response.ok) throw new Error('Update failed');
+                    return await response.json();
+                } catch (e) {
+                    if (i === retries - 1) alert('ဒေတာ ပြင်ဆင်မှု မအောင်မြင်ပါ။');
+                    await new Promise(res => setTimeout(res, 1000));
+                }
+            }
         }
 
         function checkLoggedIn() {
-            if (!navigator.onLine) {
-                alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
-                return;
-            }
+            if (!navigator.onLine) return alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
             const loggedInUser = localStorage.getItem('loggedInUser');
             if (loggedInUser) {
                 userId = loggedInUser;
+                phone = localStorage.getItem('phone');
                 syncGameState();
                 drawWheel();
                 updateUI();
@@ -146,10 +149,7 @@
         }
 
         async function login() {
-            if (!navigator.onLine) {
-                alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
-                return;
-            }
+            if (!navigator.onLine) return alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
             phone = document.getElementById('phone').value;
             const pin = document.getElementById('pin').value;
             if (!phone.match(/^09\d{8,9}$/) || pin.length !== 6) {
@@ -160,11 +160,10 @@
             const data = await fetchData();
             if (!data.game.adminStarted) {
                 document.getElementById('result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
-                document.getElementById('loginModal').style.display = 'block';
                 return;
             }
             const users = data.users || {};
-            let userData = users[userId] || { balance: 0, bets: {}, phone, lastActive: Date.now(), warnings: 0, banUntil: 0, totalBet: 0, messages: [] };
+            let userData = users[userId] || { balance: 0, bets: {}, phone, lastActive: Date.now(), warnings: 0, banUntil: 0, totalBet: 0, messages: [], transactions: [] };
             balance = userData.balance;
             bets = userData.bets || {};
             totalBet = userData.totalBet || 0;
@@ -172,6 +171,7 @@
             data.game.onlinePlayers = (data.game.onlinePlayers || 0) + 1;
             await updateData({ users, game: data.game });
             localStorage.setItem('loggedInUser', userId);
+            localStorage.setItem('phone', phone);
             document.getElementById('loginModal').style.display = 'none';
             updateUI();
             syncGameState();
@@ -180,18 +180,24 @@
 
         function logout() {
             localStorage.removeItem('loggedInUser');
+            localStorage.removeItem('phone');
+            fetchData().then(data => {
+                data.game.onlinePlayers = Math.max(0, (data.game.onlinePlayers || 0) - 1);
+                updateData({ game: data.game });
+            });
             window.location.reload();
         }
 
         async function updateUI() {
             const data = await fetchData();
+            if (!userId || !data.users[userId]) return;
             if (!data.game.adminStarted) {
                 document.getElementById('result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
                 document.getElementById('betTable').style.display = 'none';
                 return;
             }
             document.getElementById('betTable').style.display = 'grid';
-            const user = data.users[userId] || { balance: 0, bets: {}, totalBet: 0 };
+            const user = data.users[userId];
             balance = user.balance;
             bets = user.bets || {};
             totalBet = user.totalBet || 0;
@@ -201,8 +207,7 @@
             document.getElementById('online-players').innerHTML = `Online Players: ${data.game.onlinePlayers || 0}`;
             if (gameState === 'betting') {
                 document.getElementById('result').innerHTML = timeLeft <= 5 ? "⏰ Betting Closed!" : "🎲 Bet တင်ပါ!";
-                if (timeLeft <= 5) document.getElementById('countdown').innerHTML = timeLeft;
-                else document.getElementById('countdown').innerHTML = '';
+                document.getElementById('countdown').innerHTML = timeLeft <= 5 ? timeLeft : '';
             } else if (gameState === 'spinning') {
                 document.getElementById('result').innerHTML = "⏳ လှည့်နေပါတယ်...";
                 document.getElementById('ball').style.display = 'block';
@@ -213,12 +218,11 @@
             }
             updateHistory(data.game.history || []);
             updateBetTable();
-            updateChatLog();
-            updateTransactionLog();
         }
 
         async function syncGameState() {
             setInterval(async () => {
+                if (!navigator.onLine) return;
                 const data = await fetchData();
                 if (!data.game.adminStarted) {
                     document.getElementById('result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
@@ -245,16 +249,14 @@
                     }
                 }
                 game = { ...game, state: gameState, timeLeft, onlinePlayers: game.onlinePlayers || 0, result: game.result, adminStarted: true };
-                await updateData({ game });
+                data.users[userId].lastActive = Date.now();
+                await updateData({ game, users: data.users });
                 await updateUI();
             }, 1000);
         }
 
         function setupBetTable() {
-            const table = [
-                ...Array.from({ length: 37 }, (_, i) => i),
-                'red', 'black', 'odd', 'even', '1-18', '19-36'
-            ];
+            const table = [...Array.from({ length: 37 }, (_, i) => i), 'red', 'black', 'odd', 'even', '1-18', '19-36'];
             table.forEach(id => {
                 const div = document.createElement('div');
                 div.className = 'bet-area';
@@ -286,6 +288,7 @@
         }
 
         async function placeBet(id) {
+            if (!navigator.onLine) return alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
             if (gameState !== 'betting' || timeLeft <= 5 || balance <= 0) return;
             const chip = parseInt(document.querySelector('.chip.active')?.dataset.value);
             if (!chip || balance < chip) return;
@@ -380,11 +383,10 @@
 
         function spinWheel(result) {
             wheelAngle += 20;
-            ballAngle += 25;
             drawWheel(result);
             const ball = document.getElementById('ball');
             const radius = document.getElementById('wheel').width / 2;
-            ball.style.transform = `translate(-50%, -50%) rotate(${ballAngle}deg) translateX(${radius - 20}px) rotate(-${ballAngle}deg)`;
+            ball.style.transform = `translate(-50%, -50%) rotate(${wheelAngle}deg) translateX(${radius - 20}px) rotate(-${wheelAngle}deg)`;
             if (gameState === 'spinning') requestAnimationFrame(() => spinWheel(result));
         }
 
@@ -393,35 +395,20 @@
             historyDiv.innerHTML = '';
             history.slice(0, 5).forEach((item, index) => {
                 const div = document.createElement('div');
-                div.className = `history-item ${index >= 4 ? 'old' : ''}`;
+                div.className = 'history-item';
                 div.style.backgroundColor = item.color;
-                div.style.opacity = index >= 4 ? '0.3' : '1';
                 div.innerHTML = item.number;
                 historyDiv.appendChild(div);
             });
         }
 
-        function showDepositModal() { 
-            if (!navigator.onLine) {
-                alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
-                return;
-            }
-            document.getElementById('depositModal').style.display = 'flex';
-        }
-        function showWithdrawModal() { 
-            if (!navigator.onLine) {
-                alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
-                return;
-            }
-            document.getElementById('withdrawModal').style.display = 'flex';
-        }
-        function showSupportModal() { 
-            document.getElementById('supportModal').style.display = 'flex';
-            updateChatLog();
-        }
+        function showDepositModal() { if (navigator.onLine) document.getElementById('depositModal').style.display = 'flex'; else alert('အင်တာနက် လိုအပ်ပါသည်။'); }
+        function showWithdrawModal() { if (navigator.onLine) document.getElementById('withdrawModal').style.display = 'flex'; else alert('အင်တာနက် လိုအပ်ပါသည်။'); }
+        function showSupportModal() { document.getElementById('supportModal').style.display = 'flex'; updateChatLog(); }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
         async function submitDeposit() {
+            if (!navigator.onLine) return alert('အင်တာနက် လိုအပ်ပါသည်။');
             const amount = parseInt(document.getElementById('deposit-amount').value);
             const transactionId = document.getElementById('transaction-id').value;
             if (amount < 100 || transactionId.length !== 6) return;
@@ -430,7 +417,7 @@
                 data.users[userId].warnings = (data.users[userId].warnings || 0) + 1;
                 if (data.users[userId].warnings >= 3) data.users[userId].banUntil = Date.now() + 30 * 60 * 1000;
                 await updateData(data);
-                alert('Transaction ID ထပ်သုံးမှု တွေ့ရှိပါသည်။ Warning ပေးထားပါသည်။');
+                alert('Transaction ID ထပ်သုံးမှု တွေ့ရှိပါသည်။');
                 return;
             }
             const requestId = `${userId}_${Date.now()}`;
@@ -439,10 +426,10 @@
             data.transactions[userId].push({ type: 'deposit', amount, transactionId, status: 'pending', timestamp: Date.now() });
             await updateData(data);
             closeModal('depositModal');
-            updateTransactionLog();
         }
 
         async function submitWithdraw() {
+            if (!navigator.onLine) return alert('အင်တာနက် လိုအပ်ပါသည်။');
             const amount = parseInt(document.getElementById('withdraw-amount').value);
             const withdrawPhone = document.getElementById('withdraw-phone').value;
             if (amount < 100 || amount > balance || !withdrawPhone) return;
@@ -456,7 +443,6 @@
             await updateData(data);
             closeModal('withdrawModal');
             updateUI();
-            updateTransactionLog();
         }
 
         async function sendSupportMessage() {
@@ -485,24 +471,8 @@
             });
         }
 
-        function updateTransactionLog() {
-            fetchData().then(data => {
-                const transactions = data.transactions[userId] || [];
-                const logDiv = document.getElementById('transaction-log');
-                logDiv.innerHTML = '';
-                transactions.slice(-5).forEach(tx => {
-                    const div = document.createElement('div');
-                    div.style.background = tx.status === 'rejected' ? '#ff4444' : (tx.status === 'approved' ? '#44ff44' : '#ffff00');
-                    div.innerHTML = `${tx.type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'}: ${tx.amount} MMK - ${tx.status} (${new Date(tx.timestamp).toLocaleString()}) ${tx.transactionId ? 'TxID: ' + tx.transactionId : ''}`;
-                    logDiv.appendChild(div);
-                });
-            });
-        }
-
         checkLoggedIn();
         setupBetTable();
     </script>
-    <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91a9a02b9a37aff5',t:'MTc0MTAxMDA2NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-    <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91ab40424bf553ce',t:'MTc0MTAyNzEwOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
