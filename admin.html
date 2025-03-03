@@ -12,11 +12,7 @@
         button { padding: 10px 20px; background: linear-gradient(45deg, #ffd700, #b8860b); color: #000; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; transition: transform 0.2s; }
         button:hover { transform: scale(1.05); }
         .support-section { margin-top: 20px; background: #333; padding: 15px; border-radius: 10px; }
-        .chat-box { background: #444; padding: 10px; margin: 5px; border-radius: 5px; text-align: left; }
-        #result-control { margin: 20px 0; }
         select { padding: 10px; background: #222; color: #ffd700; border: 1px solid #ffd700; border-radius: 5px; }
-        #game-log { margin-top: 20px; }
-        #support-users { margin-top: 20px; }
         .support-user { cursor: pointer; padding: 10px; background: #444; margin: 5px; border-radius: 8px; }
         .support-user:hover { background: #666; }
         .chat-log { max-height: 200px; overflow-y: auto; margin-top: 10px; }
@@ -41,10 +37,6 @@
         </div>
         <div id="deposit-requests"><h3>Deposit Requests</h3></div>
         <div id="withdraw-requests"><h3>Withdraw Requests</h3></div>
-        <div id="game-log">
-            <h3>ဂိမ်းမှတ်တမ်း</h3>
-            <div id="game-history"></div>
-        </div>
         <div id="support-users">
             <h3>Customer Support</h3>
             <div id="user-list"></div>
@@ -62,25 +54,41 @@
     <script>
         const BASE_URL = 'https://casino-opper.netlify.app';
         const DATA_API = `${BASE_URL}/.netlify/functions/data`;
-
         let selectedUserId = null;
 
-        async function fetchData() {
-            const response = await fetch(DATA_API);
-            return await response.json();
+        async function fetchData(retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(DATA_API, { cache: 'no-store' });
+                    if (!response.ok) throw new Error('Network error');
+                    return await response.json();
+                } catch (e) {
+                    if (i === retries - 1) console.error('Fetch failed');
+                    await new Promise(res => setTimeout(res, 500));
+                }
+            }
         }
 
-        async function updateData(updates) {
-            const response = await fetch(DATA_API, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates),
-            });
-            return await response.json();
+        async function updateData(updates, retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(DATA_API, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updates),
+                    });
+                    if (!response.ok) throw new Error('Update failed');
+                    return await response.json();
+                } catch (e) {
+                    if (i === retries - 1) alert('ဒေတာ ပြင်ဆင်မှု မအောင်မြင်ပါ။');
+                    await new Promise(res => setTimeout(res, 500));
+                }
+            }
         }
 
         function manageGameServer() {
             setInterval(async () => {
+                if (!navigator.onLine) return;
                 const data = await fetchData();
                 document.getElementById('state').innerHTML = data.game.state;
                 document.getElementById('timeLeft').innerHTML = `${data.game.timeLeft}s`;
@@ -120,9 +128,7 @@
                         userList.appendChild(div);
                     }
                 });
-
-                updateGameHistory(data.game.history || []);
-            }, 1000);
+            }, 500); // Faster polling
         }
 
         async function startGame() {
@@ -150,6 +156,7 @@
             data.users[req.userId].messages.push({ from: 'admin', text: `${type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'} ${req.amount} MMK အတည်ပြုပြီးပါပြီ။`, timestamp: Date.now() });
             req.status = 'approved';
             await updateData(data);
+            updateUIForUser(req.userId);
         }
 
         async function rejectRequest(id) {
@@ -165,6 +172,7 @@
             data.users[req.userId].messages.push({ from: 'admin', text: `${req.type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'} ${req.amount} MMK ငြင်းပယ်ခံရပါသည်။`, timestamp: Date.now() });
             req.status = 'rejected';
             await updateData(data);
+            updateUIForUser(req.userId);
         }
 
         async function setResult() {
@@ -223,27 +231,18 @@
             });
         }
 
-        function updateGameHistory(history) {
-            const historyDiv = document.getElementById('game-history');
-            historyDiv.innerHTML = '';
-            history.forEach(item => {
-                const div = document.createElement('div');
-                div.style.backgroundColor = item.color;
-                div.style.display = 'inline-block';
-                div.style.width = '30px';
-                div.style.height = '30px';
-                div.style.borderRadius = '50%';
-                div.style.margin = '0 5px';
-                div.style.textAlign = 'center';
-                div.style.lineHeight = '30px';
-                div.innerHTML = item.number;
-                historyDiv.appendChild(div);
-            });
+        async function updateUIForUser(userId) {
+            const data = await fetchData();
+            const user = data.users[userId];
+            // This function assumes user-info.html and index.html update via their own polling
         }
 
-        manageGameServer();
+        // Auto-start game on admin load
+        window.onload = async () => {
+            const data = await fetchData();
+            if (!data.game.adminStarted) startGame();
+            manageGameServer();
+        };
     </script>
-    <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91a9a02b9ea653bb',t:'MTc0MTAxMDA2NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-    <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91ab40425ad5afa2',t:'MTc0MTAyNzEwOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
