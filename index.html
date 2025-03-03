@@ -11,8 +11,9 @@
         .roulette-wheel { margin: 20px auto; position: relative; }
         canvas { display: block; margin: 0 auto; }
         .bet-table { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin: 15px 0; }
-        .bet-area { padding: 10px; background: #444; border: 2px solid #ffd700; cursor: pointer; border-radius: 8px; transition: background 0.3s; }
+        .bet-area { padding: 10px; background: #444; border: 2px solid #ffd700; cursor: pointer; border-radius: 8px; transition: background 0.3s; position: relative; }
         .bet-area:hover { background: #666; }
+        .bet-amount { position: absolute; top: -10px; right: -10px; background: #ff4500; color: #fff; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
         .chip { width: 45px; height: 45px; border-radius: 50%; background: linear-gradient(45deg, #ffd700, #b8860b); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; margin: 5px; box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
         .chip.active { border: 3px solid #fff; }
         button { padding: 10px 20px; background: linear-gradient(45deg, #ffd700, #b8860b); color: #000; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; transition: transform 0.2s; }
@@ -27,8 +28,13 @@
         .history-item { width: 30px; height: 30px; border-radius: 50%; margin: 0 5px; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: opacity 0.5s; }
         .history-item.old { opacity: 0.3; }
         #ball { position: absolute; width: 15px; height: 15px; background: #fff; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); animation: bounce 0.5s infinite alternate; }
+        .chat-log { max-height: 200px; overflow-y: auto; margin-top: 10px; }
+        .chat-message { background: #444; padding: 10px; margin: 5px 0; border-radius: 5px; text-align: left; }
+        .chat-message.admin { background: #555; text-align: right; }
+        #win-animation { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2em; color: #00ff00; text-shadow: 0 0 10px #00ff00; animation: winPulse 1s infinite; display: none; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes bounce { 0% { transform: translate(-50%, -50%) scale(1); } 100% { transform: translate(-50%, -50%) scale(1.2); } }
+        @keyframes winPulse { 0% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.2); } 100% { transform: translate(-50%, -50%) scale(1); } }
     </style>
 </head>
 <body>
@@ -40,6 +46,7 @@
         <div class="money-controls">
             <button onclick="showDepositModal()">💸 Deposit</button>
             <button onclick="showWithdrawModal()">🏦 Withdraw</button>
+            <button onclick="showSupportModal()">📞 Support</button>
             <button onclick="logout()">🚪 Logout</button>
         </div>
         <div class="roulette-wheel">
@@ -56,11 +63,7 @@
             <div class="chip" data-value="100000">100K</div>
         </div>
         <div id="result">ကစားရန် အကောင့်ဝင်ပါ!</div>
-        <div class="support-section">
-            <h3>📞 Customer Support</h3>
-            <textarea id="support-message" placeholder="သင့်မေးခွန်းကို ရေးပါ..."></textarea>
-            <button onclick="sendSupportMessage()">📩 ပို့မည်</button>
-        </div>
+        <div id="win-animation"></div>
     </div>
 
     <div class="modal" id="loginModal" style="display: flex;">
@@ -90,6 +93,16 @@
             <input type="number" id="withdraw-amount" placeholder="ငွေပမာဏ (MMK)">
             <button onclick="submitWithdraw()">တောင်းဆိုမည်</button>
             <button onclick="closeModal('withdrawModal')">❌ ပိတ်မည်</button>
+        </div>
+    </div>
+
+    <div class="modal" id="supportModal">
+        <div class="modal-content">
+            <h2>📞 Customer Support</h2>
+            <div class="chat-log" id="chat-log"></div>
+            <textarea id="support-input" placeholder="သင့်မေးခွန်းကို ရေးပါ..."></textarea>
+            <button onclick="sendSupportMessage()">📩 ပို့မည်</button>
+            <button onclick="closeModal('supportModal')">❌ ပိတ်မည်</button>
         </div>
     </div>
 
@@ -130,6 +143,7 @@
                     totalBet = user.totalBet || 0;
                     document.getElementById('loginModal').style.display = 'none';
                     syncGameState();
+                    drawWheel();
                 }
             }
         }
@@ -148,7 +162,7 @@
                 return;
             }
             const users = data.users || {};
-            let userData = users[userId] || { balance: 10000, bets: {}, phone, lastActive: Date.now(), warnings: 0, banUntil: 0, totalBet: 0 };
+            let userData = users[userId] || { balance: 10000, bets: {}, phone, lastActive: Date.now(), warnings: 0, banUntil: 0, totalBet: 0, messages: [] };
             balance = userData.balance;
             bets = userData.bets || {};
             totalBet = userData.totalBet || 0;
@@ -186,6 +200,8 @@
                 await showResult(data);
             }
             updateHistory(data.game.history || []);
+            updateBetTable();
+            updateChatLog();
         }
 
         function syncGameState() {
@@ -222,7 +238,10 @@
         }
 
         function setupBetTable() {
-            const table = [...Array.from({ length: 36 }, (_, i) => i + 1), 'red', 'black', 'odd', 'even', '1-18', '19-36'];
+            const table = [
+                ...Array.from({ length: 36 }, (_, i) => i + 1),
+                'red', 'black', 'odd', 'even', '1-18', '19-36'
+            ];
             table.forEach(id => {
                 const div = document.createElement('div');
                 div.className = 'bet-area';
@@ -230,6 +249,25 @@
                 div.innerHTML = id;
                 div.onclick = () => placeBet(id);
                 document.getElementById('betTable').appendChild(div);
+            });
+        }
+
+        function updateBetTable() {
+            const table = document.getElementById('betTable').children;
+            Array.from(table).forEach(area => {
+                const id = area.id.replace('bet-', '');
+                const amount = bets[id] || 0;
+                let amountDiv = area.querySelector('.bet-amount');
+                if (amount > 0) {
+                    if (!amountDiv) {
+                        amountDiv = document.createElement('div');
+                        amountDiv.className = 'bet-amount';
+                        area.appendChild(amountDiv);
+                    }
+                    amountDiv.innerHTML = amount;
+                } else if (amountDiv) {
+                    amountDiv.remove();
+                }
             });
         }
 
@@ -241,7 +279,7 @@
             bets[id] = (bets[id] || 0) + chip;
             totalBet += chip;
             const data = await syncData('get');
-            data.users[userId] = { balance, bets, phone, lastActive: Date.now(), warnings: data.users[userId].warnings, banUntil: data.users[userId].banUntil, totalBet };
+            data.users[userId] = { balance, bets, phone, lastActive: Date.now(), warnings: data.users[userId].warnings, banUntil: data.users[userId].banUntil, totalBet, messages: data.users[userId].messages };
             await syncData('set', data);
             updateUI();
         }
@@ -270,12 +308,20 @@
             balance += winnings;
             bets = {};
             totalBet = 0;
-            data.users[userId] = { balance, bets, phone, lastActive: Date.now(), warnings: data.users[userId].warnings, banUntil: data.users[userId].banUntil, totalBet };
+            data.users[userId].balance = balance;
+            data.users[userId].bets = bets;
+            data.users[userId].totalBet = totalBet;
             data.game.history = data.game.history || [];
             data.game.history.unshift({ number: result, color: result % 2 === 0 && result !== 0 ? '#ff0000' : '#000000' });
             if (data.game.history.length > 10) data.game.history.pop();
             await syncData('set', data);
             document.getElementById('result').innerHTML = winnings ? `🎉 အနိုင်ရ: ${winnings} MMK (Result: ${result})` : `😢 အရှုံးပါ (Result: ${result})`;
+            if (winnings > 0) {
+                const winAnim = document.getElementById('win-animation');
+                winAnim.innerHTML = `+${winnings} MMK`;
+                winAnim.style.display = 'block';
+                setTimeout(() => winAnim.style.display = 'none', 2000);
+            }
         }
 
         function drawWheel(result = null) {
@@ -344,6 +390,10 @@
             if (data.users[userId]?.banUntil > Date.now()) return;
             document.getElementById('withdrawModal').style.display = 'flex';
         }
+        function showSupportModal() { 
+            document.getElementById('supportModal').style.display = 'flex';
+            updateChatLog();
+        }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
         async function submitDeposit() {
@@ -380,14 +430,28 @@
         }
 
         async function sendSupportMessage() {
-            const message = document.getElementById('support-message').value;
+            const message = document.getElementById('support-input').value;
             if (!message || !userId) return;
             const data = await syncData('get');
-            data.messages.push({ userId, phone, message, timestamp: Date.now() });
+            data.users[userId].messages = data.users[userId].messages || [];
+            data.users[userId].messages.push({ from: 'user', text: message, timestamp: Date.now() });
             await syncData('set', data);
-            document.getElementById('support-message').value = '';
-            alert('မက်ဆေ့ချ် ပို့ပြီးပါပြီ!');
-            updateUI();
+            document.getElementById('support-input').value = '';
+            updateChatLog();
+        }
+
+        function updateChatLog() {
+            const data = loadData();
+            const userMessages = data.users[userId]?.messages || [];
+            const chatLog = document.getElementById('chat-log');
+            chatLog.innerHTML = '';
+            userMessages.forEach(msg => {
+                const div = document.createElement('div');
+                div.className = `chat-message ${msg.from === 'admin' ? 'admin' : ''}`;
+                div.innerHTML = `${msg.text} <br><small>${new Date(msg.timestamp).toLocaleString()}</small>`;
+                chatLog.appendChild(div);
+            });
+            chatLog.scrollTop = chatLog.scrollHeight;
         }
 
         checkLoggedIn();
