@@ -32,6 +32,7 @@
         .chat-message { background: #444; padding: 10px; margin: 5px 0; border-radius: 5px; text-align: left; }
         .chat-message.admin { background: #555; text-align: right; }
         #win-animation { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2em; color: #00ff00; text-shadow: 0 0 10px #00ff00; animation: winPulse 1s infinite; display: none; }
+        #transaction-log div { padding: 5px; margin: 5px; border-radius: 5px; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes spinBall { 0% { transform: translate(-50%, -50%) rotate(0deg) translateX(100px) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg) translateX(100px) rotate(-360deg); } }
         @keyframes winPulse { 0% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.2); } 100% { transform: translate(-50%, -50%) scale(1); } }
@@ -64,6 +65,10 @@
         </div>
         <div id="result">ကစားရန် အကောင့်ဝင်ပါ!</div>
         <div id="win-animation"></div>
+        <div id="transaction-history">
+            <h3>ငွေသွင်း/ထုတ်မှတ်တမ်း</h3>
+            <div id="transaction-log"></div>
+        </div>
     </div>
 
     <div class="modal" id="loginModal" style="display: flex;">
@@ -108,47 +113,43 @@
 
     <script>
         const BASE_URL = 'https://casino-opper.netlify.app';
+        const DATA_API = `${BASE_URL}/.netlify/functions/data`;
 
         let userId, phone, balance = 0, bets = {}, timeLeft = 30, gameState = 'betting', wheelAngle = 0, totalBet = 0, history = [], ballAngle = 0;
 
-        function loadData() {
-            return JSON.parse(localStorage.getItem('casinoData') || '{}');
+        async function fetchData() {
+            const response = await fetch(DATA_API);
+            return await response.json();
         }
 
-        function saveData(data) {
-            localStorage.setItem('casinoData', JSON.stringify(data));
-        }
-
-        async function syncData(action, updates = {}) {
-            let data = loadData();
-            if (!data.game) data = { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] } };
-            if (action === 'get') return data;
-            if (action === 'set') {
-                data = { ...data, ...updates };
-                saveData(data);
-            }
-            return data;
+        async function updateData(updates) {
+            const response = await fetch(DATA_API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+            });
+            return await response.json();
         }
 
         function checkLoggedIn() {
+            if (!navigator.onLine) {
+                alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
+                return;
+            }
             const loggedInUser = localStorage.getItem('loggedInUser');
             if (loggedInUser) {
                 userId = loggedInUser;
-                const data = loadData();
-                const user = data.users[userId];
-                if (user) {
-                    phone = user.phone;
-                    balance = user.balance;
-                    bets = user.bets || {};
-                    totalBet = user.totalBet || 0;
-                    document.getElementById('loginModal').style.display = 'none';
-                    syncGameState();
-                    drawWheel();
-                }
+                syncGameState();
+                drawWheel();
+                updateUI();
             }
         }
 
         async function login() {
+            if (!navigator.onLine) {
+                alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
+                return;
+            }
             phone = document.getElementById('phone').value;
             const pin = document.getElementById('pin').value;
             if (!phone.match(/^09\d{8,9}$/) || pin.length !== 6) {
@@ -156,19 +157,19 @@
                 return;
             }
             userId = btoa(phone + pin);
-            const data = await syncData('get');
+            const data = await fetchData();
             if (!data.game.adminStarted) {
                 document.getElementById('result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
                 return;
             }
             const users = data.users || {};
-            let userData = users[userId] || { balance: 10000, bets: {}, phone, lastActive: Date.now(), warnings: 0, banUntil: 0, totalBet: 0, messages: [] };
+            let userData = users[userId] || { balance: 0, bets: {}, phone, lastActive: Date.now(), warnings: 0, banUntil: 0, totalBet: 0, messages: [] };
             balance = userData.balance;
             bets = userData.bets || {};
             totalBet = userData.totalBet || 0;
             users[userId] = userData;
             data.game.onlinePlayers = (data.game.onlinePlayers || 0) + 1;
-            await syncData('set', { users, game: data.game });
+            await updateData({ users, game: data.game });
             localStorage.setItem('loggedInUser', userId);
             document.getElementById('loginModal').style.display = 'none';
             updateUI();
@@ -182,7 +183,11 @@
         }
 
         async function updateUI() {
-            const data = await syncData('get');
+            const data = await fetchData();
+            const user = data.users[userId] || { balance: 0, bets: {}, totalBet: 0 };
+            balance = user.balance;
+            bets = user.bets || {};
+            totalBet = user.totalBet || 0;
             document.getElementById('balance-value').innerHTML = balance;
             document.getElementById('total-bet-value').innerHTML = totalBet;
             document.getElementById('timer').innerHTML = `Time Left: ${timeLeft}s`;
@@ -202,11 +207,12 @@
             updateHistory(data.game.history || []);
             updateBetTable();
             updateChatLog();
+            updateTransactionLog();
         }
 
-        function syncGameState() {
+        async function syncGameState() {
             setInterval(async () => {
-                const data = await syncData('get');
+                const data = await fetchData();
                 if (!data.game.adminStarted) {
                     document.getElementById('result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
                     return;
@@ -228,11 +234,11 @@
                         totalBet = 0;
                         const users = data.users || {};
                         Object.values(users).forEach(user => user.totalBet = 0);
-                        await syncData('set', { users });
+                        await updateData({ users });
                     }
                 }
                 game = { ...game, state: gameState, timeLeft, onlinePlayers: game.onlinePlayers || 0, result: game.result, adminStarted: true };
-                await syncData('set', { game });
+                await updateData({ game });
                 await updateUI();
             }, 1000);
         }
@@ -247,7 +253,7 @@
                 div.className = 'bet-area';
                 div.id = `bet-${id}`;
                 div.innerHTML = id;
-                if (id === 0) div.style.backgroundColor = '#00ff00'; // Green for 0
+                if (id === 0) div.style.backgroundColor = '#00ff00';
                 div.onclick = () => placeBet(id);
                 document.getElementById('betTable').appendChild(div);
             });
@@ -273,15 +279,15 @@
         }
 
         async function placeBet(id) {
-            if (gameState !== 'betting' || timeLeft <= 5) return;
+            if (gameState !== 'betting' || timeLeft <= 5 || balance <= 0) return;
             const chip = parseInt(document.querySelector('.chip.active')?.dataset.value);
             if (!chip || balance < chip) return;
             balance -= chip;
             bets[id] = (bets[id] || 0) + chip;
             totalBet += chip;
-            const data = await syncData('get');
-            data.users[userId] = { balance, bets, phone, lastActive: Date.now(), warnings: data.users[userId].warnings, banUntil: data.users[userId].banUntil, totalBet, messages: data.users[userId].messages };
-            await syncData('set', data);
+            const data = await fetchData();
+            data.users[userId] = { ...data.users[userId], balance, bets, totalBet, lastActive: Date.now() };
+            await updateData(data);
             updateUI();
         }
 
@@ -298,7 +304,7 @@
             const result = data.game.result;
             let winnings = 0;
             if (!isNaN(result)) {
-                if (bets[result]) winnings += bets[result] * 36; // Single number
+                if (bets[result]) winnings += bets[result] * 36;
                 if (bets['red'] && (result % 2 === 0 && result !== 0)) winnings += bets['red'] * 2;
                 if (bets['black'] && (result % 2 === 1)) winnings += bets['black'] * 2;
                 if (bets['odd'] && (result % 2 === 1)) winnings += bets['odd'] * 2;
@@ -314,8 +320,8 @@
             data.users[userId].totalBet = totalBet;
             data.game.history = data.game.history || [];
             data.game.history.unshift({ number: result, color: result === 0 ? '#00ff00' : (result % 2 === 0 ? '#ff0000' : '#000000') });
-            if (data.game.history.length > 10) data.game.history.pop();
-            await syncData('set', data);
+            if (data.game.history.length > 5) data.game.history.pop();
+            await updateData(data);
             document.getElementById('result').innerHTML = winnings ? `🎉 အနိုင်ရ: ${winnings} MMK (Result: ${result})` : `😢 အရှုံးပါ (Result: ${result})`;
             if (winnings > 0) {
                 const winAnim = document.getElementById('win-animation');
@@ -378,23 +384,28 @@
         function updateHistory(history) {
             const historyDiv = document.getElementById('history');
             historyDiv.innerHTML = '';
-            history.forEach((item, index) => {
+            history.slice(0, 5).forEach((item, index) => {
                 const div = document.createElement('div');
-                div.className = `history-item ${index >= 9 ? 'old' : ''}`;
+                div.className = `history-item ${index >= 4 ? 'old' : ''}`;
                 div.style.backgroundColor = item.color;
+                div.style.opacity = index >= 4 ? '0.3' : '1';
                 div.innerHTML = item.number;
                 historyDiv.appendChild(div);
             });
         }
 
         function showDepositModal() { 
-            const data = loadData();
-            if (data.users[userId]?.banUntil > Date.now()) return;
+            if (!navigator.onLine) {
+                alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
+                return;
+            }
             document.getElementById('depositModal').style.display = 'flex';
         }
         function showWithdrawModal() { 
-            const data = loadData();
-            if (data.users[userId]?.banUntil > Date.now()) return;
+            if (!navigator.onLine) {
+                alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
+                return;
+            }
             document.getElementById('withdrawModal').style.display = 'flex';
         }
         function showSupportModal() { 
@@ -407,19 +418,21 @@
             const amount = parseInt(document.getElementById('deposit-amount').value);
             const transactionId = document.getElementById('transaction-id').value;
             if (amount < 100 || transactionId.length !== 6) return;
-            const data = await syncData('get');
+            const data = await fetchData();
             if (Object.values(data.requests).some(req => req.transactionId === transactionId)) {
                 data.users[userId].warnings = (data.users[userId].warnings || 0) + 1;
                 if (data.users[userId].warnings >= 3) data.users[userId].banUntil = Date.now() + 30 * 60 * 1000;
-                await syncData('set', data);
+                await updateData(data);
                 alert('Transaction ID ထပ်သုံးမှု တွေ့ရှိပါသည်။ Warning ပေးထားပါသည်။');
                 return;
             }
             const requestId = `${userId}_${Date.now()}`;
             data.requests[requestId] = { userId, phone, amount, transactionId, type: 'deposit', status: 'pending', timestamp: Date.now() };
-            await syncData('set', data);
+            data.transactions[userId] = data.transactions[userId] || [];
+            data.transactions[userId].push({ type: 'deposit', amount, transactionId, status: 'pending', timestamp: Date.now() });
+            await updateData(data);
             closeModal('depositModal');
-            updateUI();
+            updateTransactionLog();
         }
 
         async function submitWithdraw() {
@@ -427,42 +440,61 @@
             const withdrawPhone = document.getElementById('withdraw-phone').value;
             if (amount < 100 || amount > balance || !withdrawPhone) return;
             balance -= amount;
-            const data = await syncData('get');
+            const data = await fetchData();
             data.users[userId].balance = balance;
             const requestId = `${userId}_${Date.now()}`;
             data.requests[requestId] = { userId, phone, amount, withdrawPhone, type: 'withdraw', status: 'pending', timestamp: Date.now() };
-            await syncData('set', data);
+            data.transactions[userId] = data.transactions[userId] || [];
+            data.transactions[userId].push({ type: 'withdraw', amount, status: 'pending', timestamp: Date.now() });
+            await updateData(data);
             closeModal('withdrawModal');
             updateUI();
+            updateTransactionLog();
         }
 
         async function sendSupportMessage() {
             const message = document.getElementById('support-input').value;
             if (!message || !userId) return;
-            const data = await syncData('get');
+            const data = await fetchData();
             data.users[userId].messages = data.users[userId].messages || [];
             data.users[userId].messages.push({ from: 'user', text: message, timestamp: Date.now() });
-            await syncData('set', data);
+            await updateData(data);
             document.getElementById('support-input').value = '';
             updateChatLog();
         }
 
         function updateChatLog() {
-            const data = loadData();
-            const userMessages = data.users[userId]?.messages || [];
-            const chatLog = document.getElementById('chat-log');
-            chatLog.innerHTML = '';
-            userMessages.forEach(msg => {
-                const div = document.createElement('div');
-                div.className = `chat-message ${msg.from === 'admin' ? 'admin' : ''}`;
-                div.innerHTML = `${msg.text} <br><small>${new Date(msg.timestamp).toLocaleString()}</small>`;
-                chatLog.appendChild(div);
+            fetchData().then(data => {
+                const userMessages = data.users[userId]?.messages || [];
+                const chatLog = document.getElementById('chat-log');
+                chatLog.innerHTML = '';
+                userMessages.forEach(msg => {
+                    const div = document.createElement('div');
+                    div.className = `chat-message ${msg.from === 'admin' ? 'admin' : ''}`;
+                    div.innerHTML = `${msg.text} <br><small>${new Date(msg.timestamp).toLocaleString()}</small>`;
+                    chatLog.appendChild(div);
+                });
+                chatLog.scrollTop = chatLog.scrollHeight;
             });
-            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+
+        function updateTransactionLog() {
+            fetchData().then(data => {
+                const transactions = data.transactions[userId] || [];
+                const logDiv = document.getElementById('transaction-log');
+                logDiv.innerHTML = '';
+                transactions.slice(-5).forEach(tx => {
+                    const div = document.createElement('div');
+                    div.style.background = tx.status === 'rejected' ? '#ff4444' : (tx.status === 'approved' ? '#44ff44' : '#ffff00');
+                    div.innerHTML = `${tx.type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'}: ${tx.amount} MMK - ${tx.status} (${new Date(tx.timestamp).toLocaleString()}) ${tx.transactionId ? 'TxID: ' + tx.transactionId : ''}`;
+                    logDiv.appendChild(div);
+                });
+            });
         }
 
         checkLoggedIn();
         setupBetTable();
     </script>
+    <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91a9a02b9a37aff5',t:'MTc0MTAxMDA2NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
