@@ -31,8 +31,7 @@
         const BASE_URL = 'https://casino-opper.netlify.app';
 
         function loadData() {
-            const data = JSON.parse(localStorage.getItem('casinoData') || '{}');
-            return data.game ? data : { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] } };
+            return JSON.parse(localStorage.getItem('casinoData') || '{}');
         }
 
         function saveData(data) {
@@ -41,6 +40,7 @@
 
         async function syncData(action, updates = {}) {
             let data = loadData();
+            if (!data.game) data = { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] } };
             if (action === 'get') return data;
             if (action === 'set') {
                 data = { ...data, ...updates };
