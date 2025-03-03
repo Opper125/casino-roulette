@@ -1,4 +1,4 @@
-​<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="my">
 <head>
     <meta charset="UTF-8">
@@ -21,30 +21,32 @@
         <button onclick="exportUserData()">📤 Export User Data</button>
         <table>
             <thead>
-                <tr><th>User ID</th><th>ဖုန်းနံပတ်</th><th>လက်ကျန်ငွေ (MMK)</th><th>နောက်ဆုံး အသုံးပြုချိန်</th><th>Warnings</th><th>Ban Until</th></tr>
+                <tr><th>User ID</th><th>ဖုန်းနံပတ်</th><th>လက်ကျန်ငွေ (MMK)</th><th>Total Bet</th><th>နောက်ဆုံး အသုံးပြုချိန်</th><th>Warnings</th><th>Ban Until</th></tr>
             </thead>
             <tbody id="userList"></tbody>
         </table>
     </div>
 
     <script>
-        const REPO = 'casino-roulette';
-        const OWNER = 'Opper125';
-        const FILE_PATH = 'data.json';
         const BASE_URL = 'https://casino-opper.netlify.app';
 
+        function loadData() {
+            const data = JSON.parse(localStorage.getItem('casinoData') || '{}');
+            return data.game ? data : { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false } };
+        }
+
+        function saveData(data) {
+            localStorage.setItem('casinoData', JSON.stringify(data));
+        }
+
         async function syncData(action, updates = {}) {
-            try {
-                const response = await fetch(`${BASE_URL}/.netlify/functions/sync`, {
-                    method: 'POST',
-                    body: JSON.stringify({ action, updates, repo: REPO, owner: OWNER, path: FILE_PATH })
-                });
-                if (!response.ok) throw new Error('Sync failed');
-                return await response.json();
-            } catch (error) {
-                console.error('Sync Error:', error);
-                return { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null } };
+            let data = loadData();
+            if (action === 'get') return data;
+            if (action === 'set') {
+                data = { ...data, ...updates };
+                saveData(data);
             }
+            return data;
         }
 
         function updateUserInfo() {
@@ -55,7 +57,7 @@
                 const users = data.users || {};
                 Object.entries(users).forEach(([id, user]) => {
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td>${id.substr(0, 8)}...</td><td>${user.phone}</td><td>${user.balance}</td><td>${new Date(user.lastActive).toLocaleString()}</td><td>${user.warnings || 0}</td><td>${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}</td>`;
+                    row.innerHTML = `<td>${id.substr(0, 8)}...</td><td>${user.phone}</td><td>${user.balance}</td><td>${user.totalBet || 0}</td><td>${new Date(user.lastActive).toLocaleString()}</td><td>${user.warnings || 0}</td><td>${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}</td>`;
                     userList.appendChild(row);
                 });
             }, 1000);
@@ -64,9 +66,9 @@
         async function exportUserData() {
             const data = await syncData('get');
             const users = data.users || {};
-            let csv = 'User ID,Phone,Balance,Last Active,Warnings,Ban Until\n';
+            let csv = 'User ID,Phone,Balance,Total Bet,Last Active,Warnings,Ban Until\n';
             Object.entries(users).forEach(([id, user]) => {
-                csv += `${id},${user.phone},${user.balance},${new Date(user.lastActive).toLocaleString()},${user.warnings || 0},${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}\n`;
+                csv += `${id},${user.phone},${user.balance},${user.totalBet || 0},${new Date(user.lastActive).toLocaleString()},${user.warnings || 0},${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
