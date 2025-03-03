@@ -60,31 +60,27 @@
 
     <script>
         const BASE_URL = 'https://casino-opper.netlify.app';
+        const DATA_API = `${BASE_URL}/.netlify/functions/data`;
 
         let selectedUserId = null;
 
-        function loadData() {
-            return JSON.parse(localStorage.getItem('casinoData') || '{}');
+        async function fetchData() {
+            const response = await fetch(DATA_API);
+            return await response.json();
         }
 
-        function saveData(data) {
-            localStorage.setItem('casinoData', JSON.stringify(data));
-        }
-
-        async function syncData(action, updates = {}) {
-            let data = loadData();
-            if (!data.game) data = { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] } };
-            if (action === 'get') return data;
-            if (action === 'set') {
-                data = { ...data, ...updates };
-                saveData(data);
-            }
-            return data;
+        async function updateData(updates) {
+            const response = await fetch(DATA_API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+            });
+            return await response.json();
         }
 
         function manageGameServer() {
             setInterval(async () => {
-                const data = await syncData('get');
+                const data = await fetchData();
                 document.getElementById('state').innerHTML = data.game.state;
                 document.getElementById('timeLeft').innerHTML = `${data.game.timeLeft}s`;
                 document.getElementById('online-players').innerHTML = `Online Players: ${data.game.onlinePlayers || 0}`;
@@ -107,6 +103,11 @@
                     }
                 });
 
+                Object.keys(requests).forEach(id => {
+                    if (requests[id].status !== 'pending') delete requests[id];
+                });
+                await updateData({ requests });
+
                 const userList = document.getElementById('user-list');
                 userList.innerHTML = '';
                 Object.entries(data.users || {}).forEach(([id, user]) => {
@@ -124,55 +125,56 @@
         }
 
         async function startGame() {
-            const data = await syncData('set', { game: { ...loadData().game, adminStarted: true } });
+            const data = await fetchData();
+            await updateData({ game: { ...data.game, adminStarted: true } });
             alert('ဂိမ်းစတင်ပြီးပါပြီ။');
         }
 
         async function approveRequest(id, type) {
-            const data = await syncData('get');
+            const data = await fetchData();
             const req = data.requests[id];
-            if (!req || req.userId !== data.users[req.userId]?.userId) return; // Verify request integrity
+            if (!req || !data.users[req.userId]) return;
             if (type === 'deposit') {
                 data.users[req.userId].balance += req.amount;
-                data.users[req.userId].messages = data.users[req.userId].messages || [];
-                data.users[req.userId].messages.push({ from: 'admin', text: `ငွေသွင်းမှု ${req.amount} MMK အတည်ပြုပြီးပါပြီ။`, timestamp: Date.now() });
+                data.transactions[req.userId].find(tx => tx.transactionId === req.transactionId).status = 'approved';
             } else if (type === 'withdraw') {
-                data.users[req.userId].messages = data.users[req.userId].messages || [];
-                data.users[req.userId].messages.push({ from: 'admin', text: `ငွေထုတ်မှု ${req.amount} MMK အတည်ပြုပြီးပါပြီ။`, timestamp: Date.now() });
+                data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'approved';
             }
+            data.users[req.userId].messages.push({ from: 'admin', text: `${type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'} ${req.amount} MMK အတည်ပြုပြီးပါပြီ။`, timestamp: Date.now() });
             req.status = 'approved';
-            await syncData('set', data);
+            await updateData(data);
         }
 
         async function rejectRequest(id) {
-            const data = await syncData('get');
+            const data = await fetchData();
             const req = data.requests[id];
-            if (!req || req.userId !== data.users[req.userId]?.userId) return; // Verify request integrity
+            if (!req || !data.users[req.userId]) return;
             if (req.type === 'withdraw') {
-                data.users[req.userId].balance += req.amount; // Refund on reject
-                data.users[req.userId].messages = data.users[req.userId].messages || [];
-                data.users[req.userId].messages.push({ from: 'admin', text: `ငွေထုတ်မှု ${req.amount} MMK ငြင်းပယ်ခံရပါသည်။ ငွေပြန်ထည့်ပြီးပါပြီ။`, timestamp: Date.now() });
+                data.users[req.userId].balance += req.amount;
+                data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'rejected';
             } else if (req.type === 'deposit') {
-                data.users[req.userId].messages = data.users[req.userId].messages || [];
-                data.users[req.userId].messages.push({ from: 'admin', text: `ငွေသွင်းမှု ${req.amount} MMK ငြင်းပယ်ခံရပါသည်။`, timestamp: Date.now() });
+                data.transactions[req.userId].find(tx => tx.transactionId === req.transactionId).status = 'rejected';
             }
+            data.users[req.userId].messages.push({ from: 'admin', text: `${req.type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'} ${req.amount} MMK ငြင်းပယ်ခံရပါသည်။`, timestamp: Date.now() });
             req.status = 'rejected';
-            await syncData('set', data);
+            await updateData(data);
         }
 
         async function setResult() {
             const result = parseInt(document.getElementById('result-number').value);
             if (isNaN(result)) return;
-            const data = await syncData('set', { game: { ...loadData().game, result } });
+            const data = await fetchData();
+            await updateData({ game: { ...data.game, result } });
             alert(`Result set to ${result}`);
         }
 
         async function resetServer() {
-            await syncData('set', {
+            await updateData({
                 users: {},
                 requests: {},
                 messages: [],
-                game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] }
+                game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] },
+                transactions: {}
             });
             alert('Server အသစ်စတင်ပြီးပါပြီ။');
         }
@@ -187,26 +189,27 @@
         async function sendAdminSupportMessage() {
             const message = document.getElementById('admin-support-input').value;
             if (!message || !selectedUserId) return;
-            const data = await syncData('get');
+            const data = await fetchData();
             data.users[selectedUserId].messages = data.users[selectedUserId].messages || [];
             data.users[selectedUserId].messages.push({ from: 'admin', text: message, timestamp: Date.now() });
-            await syncData('set', data);
+            await updateData(data);
             document.getElementById('admin-support-input').value = '';
             updateAdminChatLog();
         }
 
         function updateAdminChatLog() {
-            const data = loadData();
-            const userMessages = data.users[selectedUserId]?.messages || [];
-            const chatLog = document.getElementById('admin-chat-log');
-            chatLog.innerHTML = '';
-            userMessages.forEach(msg => {
-                const div = document.createElement('div');
-                div.className = `chat-message ${msg.from === 'admin' ? 'admin' : ''}`;
-                div.innerHTML = `${msg.text} <br><small>${new Date(msg.timestamp).toLocaleString()}</small>`;
-                chatLog.appendChild(div);
+            fetchData().then(data => {
+                const userMessages = data.users[selectedUserId]?.messages || [];
+                const chatLog = document.getElementById('admin-chat-log');
+                chatLog.innerHTML = '';
+                userMessages.forEach(msg => {
+                    const div = document.createElement('div');
+                    div.className = `chat-message ${msg.from === 'admin' ? 'admin' : ''}`;
+                    div.innerHTML = `${msg.text} <br><small>${new Date(msg.timestamp).toLocaleString()}</small>`;
+                    chatLog.appendChild(div);
+                });
+                chatLog.scrollTop = chatLog.scrollHeight;
             });
-            chatLog.scrollTop = chatLog.scrollHeight;
         }
 
         function updateGameHistory(history) {
@@ -229,5 +232,6 @@
 
         manageGameServer();
     </script>
+    <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91a9a02b9ea653bb',t:'MTc0MTAxMDA2NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
