@@ -23,6 +23,9 @@
         textarea { width: 100%; padding: 10px; border-radius: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; }
         input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; }
         #countdown { font-size: 2em; color: #ff4500; text-shadow: 0 0 10px #ff4500; animation: pulse 1s infinite; }
+        #history { display: flex; justify-content: center; margin: 10px 0; }
+        .history-item { width: 30px; height: 30px; border-radius: 50%; margin: 0 5px; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: opacity 0.5s; }
+        .history-item.old { opacity: 0.3; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
     </style>
 </head>
@@ -31,6 +34,7 @@
         <h1>🎰 Casino Roulette 🎰</h1>
         <div id="online-players">Online Players: 0</div>
         <div id="balance">Balance: <span id="balance-value">0</span> MMK</div>
+        <div id="total-bet">Total Bet: <span id="total-bet-value">0</span> MMK</div>
         <div class="money-controls">
             <button onclick="showDepositModal()">💸 Deposit</button>
             <button onclick="showWithdrawModal()">🏦 Withdraw</button>
@@ -40,6 +44,7 @@
             <div id="countdown"></div>
         </div>
         <div class="timer" id="timer">Time Left: 30s</div>
+        <div id="history"></div>
         <div class="bet-table" id="betTable"></div>
         <div class="bet-chips">
             <div class="chip" data-value="1000">1K</div>
@@ -85,25 +90,27 @@
     </div>
 
     <script>
-        const REPO = 'casino-roulette';
-        const OWNER = 'Opper125';
-        const FILE_PATH = 'data.json';
         const BASE_URL = 'https://casino-opper.netlify.app';
 
-        let userId, phone, balance = 0, bets = {}, timeLeft = 30, gameState = 'betting', wheelAngle = 0;
+        let userId, phone, balance = 0, bets = {}, timeLeft = 30, gameState = 'betting', wheelAngle = 0, totalBet = 0, history = [];
+
+        function loadData() {
+            const data = JSON.parse(localStorage.getItem('casinoData') || '{}');
+            return data.game ? data : { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false } };
+        }
+
+        function saveData(data) {
+            localStorage.setItem('casinoData', JSON.stringify(data));
+        }
 
         async function syncData(action, updates = {}) {
-            try {
-                const response = await fetch(`${BASE_URL}/.netlify/functions/sync`, {
-                    method: 'POST',
-                    body: JSON.stringify({ action, updates, repo: REPO, owner: OWNER, path: FILE_PATH })
-                });
-                if (!response.ok) throw new Error('Sync failed');
-                return await response.json();
-            } catch (error) {
-                console.error('Sync Error:', error);
-                return { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null } };
+            let data = loadData();
+            if (action === 'get') return data;
+            if (action === 'set') {
+                data = { ...data, ...updates };
+                saveData(data);
             }
+            return data;
         }
 
         async function login() {
@@ -115,10 +122,15 @@
             }
             userId = btoa(phone + pin);
             const data = await syncData('get');
+            if (!data.game.adminStarted) {
+                document.getElementById('result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
+                return;
+            }
             const users = data.users || {};
             let userData = users[userId] || { balance: 10000, bets: {}, phone, lastActive: Date.now(), warnings: 0, banUntil: 0 };
             balance = userData.balance;
             bets = userData.bets || {};
+            totalBet = userData.totalBet || 0;
             users[userId] = userData;
             data.game.onlinePlayers = (data.game.onlinePlayers || 0) + 1;
             await syncData('set', { users, game: data.game });
@@ -130,6 +142,7 @@
 
         async function updateUI() {
             document.getElementById('balance-value').innerHTML = balance;
+            document.getElementById('total-bet-value').innerHTML = totalBet;
             document.getElementById('timer').innerHTML = `Time Left: ${timeLeft}s`;
             const data = await syncData('get');
             document.getElementById('online-players').innerHTML = `Online Players: ${data.game.onlinePlayers || 0}`;
@@ -139,16 +152,21 @@
                 else document.getElementById('countdown').innerHTML = '';
             } else if (gameState === 'spinning') {
                 document.getElementById('result').innerHTML = "⏳ လှည့်နေပါတယ်...";
-                spinWheel();
+                spinWheel(data.game.result);
             } else if (gameState === 'result') {
                 await showResult(data);
             }
+            updateHistory(data.game.history || []);
         }
 
         function syncGameState() {
             setInterval(async () => {
                 const data = await syncData('get');
-                let game = data.game || { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null };
+                if (!data.game.adminStarted) {
+                    document.getElementById('result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
+                    return;
+                }
+                let game = data.game;
                 gameState = game.state;
                 timeLeft = game.timeLeft > 0 ? game.timeLeft - 1 : 0;
                 if (timeLeft === 0) {
@@ -158,39 +176,43 @@
                     } else if (gameState === 'spinning') {
                         gameState = 'result';
                         timeLeft = 2;
-                        game.result = Math.floor(Math.random() * 36) + 1;
                     } else {
                         gameState = 'betting';
                         timeLeft = 30;
                         game.result = null;
+                        totalBet = 0;
+                        const users = data.users || {};
+                        Object.values(users).forEach(user => user.totalBet = 0);
+                        await syncData('set', { users });
                     }
                 }
-                game = { state: gameState, timeLeft, onlinePlayers: game.onlinePlayers, result: game.result, lastUpdate: Date.now() };
+                game = { ...game, state: gameState, timeLeft, onlinePlayers: game.onlinePlayers || 0, result: game.result, adminStarted: true };
                 await syncData('set', { game });
                 await updateUI();
             }, 1000);
         }
 
         function setupBetTable() {
-            const table = ['1', '2', '3', '4', '5', '6', 'red', 'black', 'odd', 'even', '1-18', '19-36'];
-            table.forEach(id => {
+            const table = Array.from({ length: 36 }, (_, i) => i + 1);
+            table.forEach(num => {
                 const div = document.createElement('div');
                 div.className = 'bet-area';
-                div.id = `bet-${id}`;
-                div.innerHTML = id;
-                div.onclick = () => placeBet(id);
+                div.id = `bet-${num}`;
+                div.innerHTML = num;
+                div.onclick = () => placeBet(num);
                 document.getElementById('betTable').appendChild(div);
             });
         }
 
-        async function placeBet(areaId) {
+        async function placeBet(num) {
             if (gameState !== 'betting' || timeLeft <= 5) return;
             const chip = parseInt(document.querySelector('.chip.active')?.dataset.value);
             if (!chip || balance < chip) return;
             balance -= chip;
-            bets[areaId] = (bets[areaId] || 0) + chip;
+            bets[num] = (bets[num] || 0) + chip;
+            totalBet += chip;
             const data = await syncData('get');
-            data.users[userId] = { balance, bets, phone, lastActive: Date.now(), warnings: data.users[userId].warnings, banUntil: data.users[userId].banUntil };
+            data.users[userId] = { balance, bets, phone, lastActive: Date.now(), warnings: data.users[userId].warnings, banUntil: data.users[userId].banUntil, totalBet };
             await syncData('set', data);
             updateUI();
         }
@@ -209,12 +231,16 @@
             let winnings = bets[result] ? bets[result] * 36 : 0;
             balance += winnings;
             bets = {};
-            data.users[userId] = { balance, bets, phone, lastActive: Date.now(), warnings: data.users[userId].warnings, banUntil: data.users[userId].banUntil };
+            totalBet = 0;
+            data.users[userId] = { balance, bets, phone, lastActive: Date.now(), warnings: data.users[userId].warnings, banUntil: data.users[userId].banUntil, totalBet };
+            data.game.history = data.game.history || [];
+            data.game.history.unshift({ number: result, color: result % 2 === 0 ? '#ff0000' : '#000000' });
+            if (data.game.history.length > 10) data.game.history.pop();
             await syncData('set', data);
             document.getElementById('result').innerHTML = winnings ? `🎉 အနိုင်ရ: ${winnings} MMK (Result: ${result})` : `😢 အရှုံးပါ (Result: ${result})`;
         }
 
-        function drawWheel() {
+        function drawWheel(result = null) {
             const canvas = document.getElementById('wheel');
             const ctx = canvas.getContext('2d');
             const radius = canvas.width / 2;
@@ -244,26 +270,41 @@
                 ctx.restore();
             });
 
+            if (result !== null) {
+                const targetAngle = (result * 360 / 37) + (Math.random() * 360);
+                wheelAngle = targetAngle;
+            }
+
             ctx.restore();
         }
 
-        function spinWheel() {
-            wheelAngle += 20; // Spin speed
-            drawWheel();
-            if (gameState === 'spinning') requestAnimationFrame(spinWheel);
+        function spinWheel(result) {
+            wheelAngle += 20;
+            drawWheel(result);
+            if (gameState === 'spinning') requestAnimationFrame(() => spinWheel(result));
+        }
+
+        function updateHistory(history) {
+            const historyDiv = document.getElementById('history');
+            historyDiv.innerHTML = '';
+            history.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = `history-item ${index >= 9 ? 'old' : ''}`;
+                div.style.backgroundColor = item.color;
+                div.innerHTML = item.number;
+                historyDiv.appendChild(div);
+            });
         }
 
         function showDepositModal() { 
-            const data = syncData('get').then(d => {
-                if (d.users[userId]?.banUntil > Date.now()) return;
-                document.getElementById('depositModal').style.display = 'flex';
-            });
+            const data = loadData();
+            if (data.users[userId]?.banUntil > Date.now()) return;
+            document.getElementById('depositModal').style.display = 'flex';
         }
         function showWithdrawModal() { 
-            const data = syncData('get').then(d => {
-                if (d.users[userId]?.banUntil > Date.now()) return;
-                document.getElementById('withdrawModal').style.display = 'flex';
-            });
+            const data = loadData();
+            if (data.users[userId]?.banUntil > Date.now()) return;
+            document.getElementById('withdrawModal').style.display = 'flex';
         }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
@@ -274,7 +315,7 @@
             const data = await syncData('get');
             if (Object.values(data.requests).some(req => req.transactionId === transactionId)) {
                 data.users[userId].warnings = (data.users[userId].warnings || 0) + 1;
-                if (data.users[userId].warnings >= 3) data.users[userId].banUntil = Date.now() + 30 * 60 * 1000; // 30 minutes ban
+                if (data.users[userId].warnings >= 3) data.users[userId].banUntil = Date.now() + 30 * 60 * 1000;
                 await syncData('set', data);
                 alert('Transaction ID ထပ်သုံးမှု တွေ့ရှိပါသည်။ Warning ပေးထားပါသည်။');
                 return;
