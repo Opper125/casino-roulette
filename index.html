@@ -27,13 +27,13 @@
         #history { display: flex; justify-content: center; margin: 10px 0; }
         .history-item { width: 30px; height: 30px; border-radius: 50%; margin: 0 5px; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: opacity 0.5s; }
         .history-item.old { opacity: 0.3; }
-        #ball { position: absolute; width: 15px; height: 15px; background: #fff; border-radius: 50%; animation: spinBall 2s infinite linear; }
+        #ball { position: absolute; width: 15px; height: 15px; background: #fff; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); }
         .chat-log { max-height: 200px; overflow-y: auto; margin-top: 10px; }
         .chat-message { background: #444; padding: 10px; margin: 5px 0; border-radius: 5px; text-align: left; }
         .chat-message.admin { background: #555; text-align: right; }
         #win-animation { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2em; color: #00ff00; text-shadow: 0 0 10px #00ff00; animation: winPulse 1s infinite; display: none; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes spinBall { 0% { transform: translate(-50%, -50%) rotate(0deg) translateX(120px) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg) translateX(120px) rotate(-360deg); } }
+        @keyframes spinBall { 0% { transform: translate(-50%, -50%) rotate(0deg) translateX(100px) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg) translateX(100px) rotate(-360deg); } }
         @keyframes winPulse { 0% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.2); } 100% { transform: translate(-50%, -50%) scale(1); } }
     </style>
 </head>
@@ -112,8 +112,7 @@
         let userId, phone, balance = 0, bets = {}, timeLeft = 30, gameState = 'betting', wheelAngle = 0, totalBet = 0, history = [], ballAngle = 0;
 
         function loadData() {
-            const data = JSON.parse(localStorage.getItem('casinoData') || '{}');
-            return data.game ? data : { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] } };
+            return JSON.parse(localStorage.getItem('casinoData') || '{}');
         }
 
         function saveData(data) {
@@ -122,17 +121,13 @@
 
         async function syncData(action, updates = {}) {
             let data = loadData();
+            if (!data.game) data = { users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] } };
             if (action === 'get') return data;
             if (action === 'set') {
                 data = { ...data, ...updates };
                 saveData(data);
             }
             return data;
-        }
-
-        function resetDataOnDeploy() {
-            localStorage.setItem('casinoData', JSON.stringify({ users: {}, requests: {}, messages: [], game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] } }));
-            localStorage.removeItem('loggedInUser');
         }
 
         function checkLoggedIn() {
@@ -466,7 +461,6 @@
             chatLog.scrollTop = chatLog.scrollHeight;
         }
 
-        resetDataOnDeploy(); // Reset data on page load
         checkLoggedIn();
         setupBetTable();
     </script>
