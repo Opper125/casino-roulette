@@ -2,7 +2,7 @@ let casinoData = {
   users: {},
   requests: {},
   messages: [],
-  game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] },
+  game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [], nextResult: null },
   transactions: {}
 };
 
@@ -15,7 +15,7 @@ function resetDailyWinnings() {
   }
 }
 
-exports.handler = async (event, context) => {
+exports.handler = async (event) => {
   try {
     resetDailyWinnings();
     if (event.httpMethod === 'GET') {
@@ -25,7 +25,16 @@ exports.handler = async (event, context) => {
       };
     } else if (event.httpMethod === 'POST') {
       const updates = JSON.parse(event.body);
-      casinoData = { ...casinoData, ...updates };
+      // Merge updates safely to avoid overwriting critical data
+      casinoData = {
+        ...casinoData,
+        ...updates,
+        users: { ...casinoData.users, ...(updates.users || {}) },
+        transactions: { ...casinoData.transactions, ...(updates.transactions || {}) },
+        requests: { ...casinoData.requests, ...(updates.requests || {}) },
+        messages: [...casinoData.messages, ...(updates.messages || [])],
+        game: { ...casinoData.game, ...(updates.game || {}) }
+      };
       return {
         statusCode: 200,
         body: JSON.stringify(casinoData),
