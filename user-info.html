@@ -32,6 +32,7 @@
         const DATA_API = `${BASE_URL}/.netlify/functions/data`;
 
         async function fetchData(retries = 5) {
+            if (!navigator.onLine) return JSON.parse(localStorage.getItem('offlineData') || '{}');
             for (let i = 0; i < retries; i++) {
                 try {
                     const response = await fetch(DATA_API, { cache: 'no-store' });
@@ -57,7 +58,7 @@
                     row.innerHTML = `<td>${id.substr(0, 8)}...</td><td>${maskPhoneNumber(user.phone)}</td><td>${user.balance || 0}</td><td>${user.totalBet || 0}</td><td>${user.totalWinnings || 0}</td><td>${new Date(user.lastActive).toLocaleString()}</td><td>${user.warnings || 0}</td><td>${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}</td>`;
                     userList.appendChild(row);
                 });
-            }, 1000); // Real-time update every second
+            }, 1000);
         }
 
         function maskPhoneNumber(phone) {
@@ -77,6 +78,7 @@
             a.href = url;
             a.download = 'user_data.csv';
             a.click();
+            URL.revokeObjectURL(url);
         }
 
         updateUserInfo();
