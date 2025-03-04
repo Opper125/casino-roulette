@@ -175,7 +175,7 @@
                 phone = localStorage.getItem('phone');
                 fetchData().then(data => {
                     if (data.users[userId]) {
-                        balance = data.users[userId].balance;
+                        balance = data.users[userId].balance || 0;
                         bets = data.users[userId].bets || {};
                         totalBet = data.users[userId].totalBet || 0;
                         syncGameState();
@@ -203,7 +203,7 @@
             }
             const users = data.users || {};
             let userData = users[userId] || { balance: 0, bets: {}, phone, pin, lastActive: Date.now(), warnings: 0, banUntil: 0, totalBet: 0, totalWinnings: 0, messages: [], transactions: [] };
-            balance = userData.balance;
+            balance = userData.balance || 0;
             bets = userData.bets || {};
             totalBet = userData.totalBet || 0;
             users[userId] = userData;
@@ -240,7 +240,7 @@
             }
             document.getElementById('betTable').style.display = 'grid';
             const user = data.users[userId];
-            balance = user.balance;
+            balance = user.balance || 0;  // Ensure balance is always updated from server
             bets = user.bets || {};
             totalBet = user.totalBet || 0;
             document.getElementById('balance-value').innerHTML = balance;
@@ -339,7 +339,7 @@
             totalBet += chip;
             const data = await fetchData();
             data.users[userId] = { ...data.users[userId], balance, bets, totalBet, lastActive: Date.now() };
-            await updateData(data);
+            await updateData({ users: data.users });
             updateUI();
         }
 
@@ -365,12 +365,13 @@
                 if (bets['19-36'] && result > 18) winnings += bets['19-36'] * 2;
             }
             balance += winnings;
-            data.users[userId].totalWinnings = (data.users[userId].totalWinnings || 0) + winnings;
+            const users = data.users || {};
+            users[userId].totalWinnings = (users[userId].totalWinnings || 0) + winnings;
             bets = {};
             totalBet = 0;
-            data.users[userId].balance = balance;
-            data.users[userId].bets = bets;
-            data.users[userId].totalBet = totalBet;
+            users[userId].balance = balance;
+            users[userId].bets = bets;
+            users[userId].totalBet = totalBet;
             data.game.history = data.game.history || [];
             data.game.history.unshift(result);
             if (data.game.history.length > 5) data.game.history.pop();
@@ -379,7 +380,7 @@
                 data.messages = data.messages || [];
                 data.messages.push({ from: maskedPhone, text: `${maskedPhone} အနိုင်ရ ${winnings} MMK (Result: ${result})`, timestamp: Date.now(), winner: true });
             }
-            await updateData(data);
+            await updateData({ users, game: data.game, messages: data.messages });
             document.getElementById('result').innerHTML = winnings ? `🎉 အနိုင်ရ: ${winnings} MMK` : `😢 အရှုံးပါ`;
             if (winnings > 0) {
                 const winAnim = document.getElementById('win-animation');
@@ -472,7 +473,7 @@
             data.messages = data.messages || [];
             const maskedPhone = maskPhoneNumber(phone);
             data.messages.push({ from: maskedPhone, text: message, timestamp: Date.now(), winner: false });
-            await updateData(data);
+            await updateData({ messages: data.messages });
             document.getElementById('chat-input').value = '';
             updateUI();
         }
@@ -509,7 +510,7 @@
             data.requests[requestId] = { userId, phone, amount, withdrawPhone, type: 'withdraw', status: 'pending', timestamp: Date.now() };
             data.transactions[userId] = data.transactions[userId] || [];
             data.transactions[userId].push({ type: 'withdraw', amount, status: 'pending', timestamp: Date.now() });
-            await updateData(data);
+            await updateData({ users: data.users, requests: data.requests, transactions: data.transactions });
             closeModal('withdrawModal');
             updateUI();
         }
@@ -520,7 +521,7 @@
             const data = await fetchData();
             data.users[userId].messages = data.users[userId].messages || [];
             data.users[userId].messages.push({ from: 'user', text: message, timestamp: Date.now() });
-            await updateData(data);
+            await updateData({ users: data.users });
             document.getElementById('support-input').value = '';
             updateSupportChatLog();
         }
