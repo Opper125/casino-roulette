@@ -105,9 +105,9 @@
                         const div = document.createElement('div');
                         div.className = 'request';
                         div.innerHTML = req.type === 'deposit' ?
-                            `User: ${req.userId.substr(0, 8)}... (Phone: ${req.phone})<br>Amount: ${req.amount} MMK<br>Transaction ID: ${req.transactionId}<br>
+                            `User: ${req.userId.substr(0, 8)}... (Phone: ${maskPhoneNumber(req.phone)})<br>Amount: ${req.amount} MMK<br>Transaction ID: ${req.transactionId}<br>
                             <button onclick="approveRequest('${id}', 'deposit')">✅ လက်ခံ</button><button onclick="rejectRequest('${id}')">❌ ငြင်းပယ်</button>` :
-                            `User: ${req.userId.substr(0, 8)}... (Phone: ${req.withdrawPhone})<br>Amount: ${req.amount} MMK<br>
+                            `User: ${req.userId.substr(0, 8)}... (Phone: ${maskPhoneNumber(req.withdrawPhone)})<br>Amount: ${req.amount} MMK<br>
                             <button onclick="approveRequest('${id}', 'withdraw')">✅ လက်ခံ</button><button onclick="rejectRequest('${id}')">❌ ငြင်းပယ်</button>`;
                         req.type === 'deposit' ? depositDiv.appendChild(div) : withdrawDiv.appendChild(div);
                     }
@@ -124,12 +124,16 @@
                     if (user.messages && user.messages.length > 0) {
                         const div = document.createElement('div');
                         div.className = 'support-user';
-                        div.innerHTML = `User: ${id.substr(0, 8)}... (Phone: ${user.phone})`;
+                        div.innerHTML = `User: ${id.substr(0, 8)}... (Phone: ${maskPhoneNumber(user.phone)})`;
                         div.onclick = () => openSupportChat(id);
                         userList.appendChild(div);
                     }
                 });
             }, 500);
+        }
+
+        function maskPhoneNumber(phone) {
+            return phone.slice(0, -3).replace(/[0-9]/g, '*') + phone.slice(-3);
         }
 
         async function startGame() {
@@ -157,7 +161,7 @@
             data.users[req.userId].messages.push({ from: 'admin', text: `${type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'} ${req.amount} MMK အတည်ပြုပြီးပါပြီ။`, timestamp: Date.now() });
             req.status = 'approved';
             await updateData(data);
-            await updateData({ users: data.users }); // အသုံးပြုသူဆီ ချက်ချင်း ပို့
+            await updateData({ users: data.users });
         }
 
         async function rejectRequest(id) {
@@ -173,7 +177,7 @@
             data.users[req.userId].messages.push({ from: 'admin', text: `${req.type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'} ${req.amount} MMK ငြင်းပယ်ခံရပါသည်။`, timestamp: Date.now() });
             req.status = 'rejected';
             await updateData(data);
-            await updateData({ users: data.users }); // အသုံးပြုသူဆီ ချက်ချင်း ပို့
+            await updateData({ users: data.users });
         }
 
         async function setResult() {
