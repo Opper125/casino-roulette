@@ -105,36 +105,56 @@
         const BASE_URL = 'https://casino-opper.netlify.app';
         const DATA_API = `${BASE_URL}/.netlify/functions/data`;
         let userId, phone, balance = 0, bets = {}, timeLeft = 30, gameState = 'betting', wheelAngle = 0, totalBet = 0;
+        let offlineQueue = []; // အော့ဖ်လိုင်း သိမ်းဖို့
 
-        async function fetchData(retries = 3) {
+        async function fetchData(retries = 5) {
+            if (!navigator.onLine) {
+                return new Promise(resolve => setTimeout(() => resolve(fetchData()), 1000));
+            }
             for (let i = 0; i < retries; i++) {
                 try {
-                    const response = await fetch(DATA_API, { cache: 'no-store' });
+                    const response = await fetch(DATA_API, { cache: 'no-store', timeout: 5000 });
                     if (!response.ok) throw new Error('Network error');
                     return await response.json();
                 } catch (e) {
-                    if (i === retries - 1) alert('အင်တာနက် ချိတ်ဆက်မှု ပြဿနာ။');
-                    await new Promise(res => setTimeout(res, 1000));
+                    if (i === retries - 1) alert('အင်တာနက် ချိတ်ဆက်မှု ပြဿနာ။ ထပ်ကြိုးစားပါ။');
+                    await new Promise(res => setTimeout(res, 500));
                 }
             }
         }
 
-        async function updateData(updates, retries = 3) {
+        async function updateData(updates, retries = 5) {
+            if (!navigator.onLine) {
+                offlineQueue.push(updates);
+                return;
+            }
             for (let i = 0; i < retries; i++) {
                 try {
                     const response = await fetch(DATA_API, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(updates),
+                        timeout: 5000
                     });
                     if (!response.ok) throw new Error('Update failed');
                     return await response.json();
                 } catch (e) {
-                    if (i === retries - 1) alert('ဒေတာ ပြင်ဆင်မှု မအောင်မြင်ပါ။');
-                    await new Promise(res => setTimeout(res, 1000));
+                    if (i === retries - 1) {
+                        offlineQueue.push(updates);
+                        alert('ဒေတာ ပြင်ဆင်မှု မအောင်မြင်ပါ။ ခဏစောင့်ပါ။');
+                    }
+                    await new Promise(res => setTimeout(res, 500));
                 }
             }
         }
+
+        window.addEventListener('online', async () => {
+            while (offlineQueue.length > 0) {
+                const updates = offlineQueue.shift();
+                await updateData(updates);
+            }
+            updateUI();
+        });
 
         function checkLoggedIn() {
             if (!navigator.onLine) return alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
@@ -142,9 +162,19 @@
             if (loggedInUser) {
                 userId = loggedInUser;
                 phone = localStorage.getItem('phone');
-                syncGameState();
-                drawWheel();
-                updateUI();
+                fetchData().then(data => {
+                    if (data.users[userId]) {
+                        balance = data.users[userId].balance;
+                        bets = data.users[userId].bets || {};
+                        totalBet = data.users[userId].totalBet || 0;
+                        syncGameState();
+                        drawWheel();
+                        updateUI();
+                    } else {
+                        localStorage.removeItem('loggedInUser');
+                        document.getElementById('loginModal').style.display = 'flex';
+                    }
+                });
             }
         }
 
@@ -190,7 +220,10 @@
 
         async function updateUI() {
             const data = await fetchData();
-            if (!userId || !data.users[userId]) return;
+            if (!userId || !data.users[userId]) {
+                document.getElementById('loginModal').style.display = 'flex';
+                return;
+            }
             if (!data.game.adminStarted) {
                 document.getElementById('result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
                 document.getElementById('betTable').style.display = 'none';
@@ -230,7 +263,7 @@
                 }
                 let game = data.game;
                 gameState = game.state;
-                timeLeft = game.timeLeft > 0 ? game.timeLeft - 1 : 0;
+                timeLeft = game.timeLeft > 0 ? game.timeLeft - 0.5 : 0;
                 if (timeLeft === 0) {
                     if (gameState === 'betting') {
                         gameState = 'spinning';
@@ -252,7 +285,7 @@
                 data.users[userId].lastActive = Date.now();
                 await updateData({ game, users: data.users });
                 await updateUI();
-            }, 1000);
+            }, 500);
         }
 
         function setupBetTable() {
@@ -408,7 +441,10 @@
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
         async function submitDeposit() {
-            if (!navigator.onLine) return alert('အင်တာနက် လိုအပ်ပါသည်။');
+            if (!navigator.onLine) {
+                alert('အင်တာနက် မရှိပါ။ ခဏစောင့်ပါ။');
+                return;
+            }
             const amount = parseInt(document.getElementById('deposit-amount').value);
             const transactionId = document.getElementById('transaction-id').value;
             if (amount < 100 || transactionId.length !== 6) return;
@@ -426,10 +462,14 @@
             data.transactions[userId].push({ type: 'deposit', amount, transactionId, status: 'pending', timestamp: Date.now() });
             await updateData(data);
             closeModal('depositModal');
+            updateUI();
         }
 
         async function submitWithdraw() {
-            if (!navigator.onLine) return alert('အင်တာနက် လိုအပ်ပါသည်။');
+            if (!navigator.onLine) {
+                alert('အင်တာနက် မရှိပါ။ ခဏစောင့်ပါ။');
+                return;
+            }
             const amount = parseInt(document.getElementById('withdraw-amount').value);
             const withdrawPhone = document.getElementById('withdraw-phone').value;
             if (amount < 100 || amount > balance || !withdrawPhone) return;
