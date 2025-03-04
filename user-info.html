@@ -54,10 +54,10 @@
                 const users = data.users || {};
                 Object.entries(users).forEach(([id, user]) => {
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td>${id.substr(0, 8)}...</td><td>${maskPhoneNumber(user.phone)}</td><td>${user.balance}</td><td>${user.totalBet || 0}</td><td>${user.totalWinnings || 0}</td><td>${new Date(user.lastActive).toLocaleString()}</td><td>${user.warnings || 0}</td><td>${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}</td>`;
+                    row.innerHTML = `<td>${id.substr(0, 8)}...</td><td>${maskPhoneNumber(user.phone)}</td><td>${user.balance || 0}</td><td>${user.totalBet || 0}</td><td>${user.totalWinnings || 0}</td><td>${new Date(user.lastActive).toLocaleString()}</td><td>${user.warnings || 0}</td><td>${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}</td>`;
                     userList.appendChild(row);
                 });
-            }, 500);
+            }, 1000); // Real-time update every second
         }
 
         function maskPhoneNumber(phone) {
@@ -69,7 +69,7 @@
             const users = data.users || {};
             let csv = 'ID,Phone,Balance,Total Bet,Total Winnings,Last Active,Warnings,Ban Until\n';
             Object.entries(users).forEach(([id, user]) => {
-                csv += `${id},${maskPhoneNumber(user.phone)},${user.balance},${user.totalBet || 0},${user.totalWinnings || 0},${new Date(user.lastActive).toLocaleString()},${user.warnings || 0},${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}\n`;
+                csv += `${id},${maskPhoneNumber(user.phone)},${user.balance || 0},${user.totalBet || 0},${user.totalWinnings || 0},${new Date(user.lastActive).toLocaleString()},${user.warnings || 0},${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
