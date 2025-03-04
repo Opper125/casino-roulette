@@ -27,7 +27,7 @@
         textarea, input { width: 100%; padding: 5px; margin: 3px 0; border-radius: 3px; background: #222; color: #ffd700; border: 1px solid #ffd700; font-size: 12px; }
         #countdown { font-size: 1.5em; color: #ff4500; text-shadow: 0 0 5px #ff4500; animation: pulse 1s infinite; }
         #history { display: flex; justify-content: center; margin: 5px 0; }
-        .history-item { width: 25px; height: 25px; border-radius: 50%; margin: 0 3px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+        .history-item { width: 25px; height: 25px; border-radius: 50%; margin: 0 3px; display: flex; align-items: center; justify-content: center; font-size: 10px; background: #444; }
         #ball { position: absolute; width: 12px; height: 12px; background: #fff; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); }
         #win-animation { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.5em; color: #00ff00; text-shadow: 0 0 5px #00ff00; animation: winPulse 1s infinite; display: none; }
         .leaderboard { margin-top: 15px; background: #333; padding: 10px; border-radius: 5px; }
@@ -45,7 +45,6 @@
         <div id="balance">Balance: <span id="balance-value">0</span> MMK</div>
         <div id="total-bet">Total Bet: <span id="total-bet-value">0</span> MMK</div>
         <div class="money-controls">
-            <button onclick="showDepositModal()">💸 Deposit</button>
             <button onclick="showWithdrawModal()">🏦 Withdraw</button>
             <button onclick="showSupportModal()">📞 Support</button>
             <button onclick="logout()">🚪 Logout</button>
@@ -86,17 +85,6 @@
         </div>
     </div>
 
-    <div class="modal" id="depositModal">
-        <div class="modal-content">
-            <h2>💸 Deposit</h2>
-            <p>Kpay/Wave: <b>09786284670</b> (DHMK)</p>
-            <input type="number" id="deposit-amount" placeholder="ငွေပမာဏ (MMK)">
-            <input type="text" id="transaction-id" placeholder="Transaction ID (6 လုံး)">
-            <button onclick="submitDeposit()">တောင်းဆိုမည်</button>
-            <button onclick="closeModal('depositModal')">❌ ပိတ်မည်</button>
-        </div>
-    </div>
-
     <div class="modal" id="withdrawModal">
         <div class="modal-content">
             <h2>🏦 Withdraw</h2>
@@ -124,9 +112,7 @@
         let offlineQueue = [];
 
         async function fetchData(retries = 5) {
-            if (!navigator.onLine) {
-                return JSON.parse(localStorage.getItem('offlineData') || '{}');
-            }
+            if (!navigator.onLine) return JSON.parse(localStorage.getItem('offlineData') || '{}');
             for (let i = 0; i < retries; i++) {
                 try {
                     const response = await fetch(DATA_API, { cache: 'no-store', timeout: 3000 });
@@ -258,8 +244,7 @@
             bets = user.bets || {};
             totalBet = user.totalBet || 0;
             document.getElementById('balance-value').innerHTML = balance;
-            let totalGameBet = Object.values(data.users).reduce((sum, u) => sum + (u.totalBet || 0), 0);
-            document.getElementById('total-bet-value').innerHTML = totalGameBet;
+            document.getElementById('total-bet-value').innerHTML = totalBet;
             document.getElementById('timer').innerHTML = `Time Left: ${timeLeft}s`;
             document.getElementById('online-players').innerHTML = `Online Players: ${data.game.onlinePlayers || 0}`;
             if (gameState === 'betting') {
@@ -293,6 +278,7 @@
                     if (gameState === 'betting') {
                         gameState = 'spinning';
                         timeLeft = 8;
+                        game.result = Math.floor(Math.random() * 37); // Auto-spin result
                     } else if (gameState === 'spinning') {
                         gameState = 'result';
                         timeLeft = 2;
@@ -320,7 +306,6 @@
                 div.className = 'bet-area';
                 div.id = `bet-${id}`;
                 div.innerHTML = id;
-                if (id === 0) div.style.backgroundColor = '#00ff00';
                 div.onclick = () => placeBet(id);
                 document.getElementById('betTable').appendChild(div);
             });
@@ -387,7 +372,7 @@
             data.users[userId].bets = bets;
             data.users[userId].totalBet = totalBet;
             data.game.history = data.game.history || [];
-            data.game.history.unshift({ number: result, color: result === 0 ? '#00ff00' : (result % 2 === 0 ? '#ff0000' : '#000000') });
+            data.game.history.unshift(result);
             if (data.game.history.length > 5) data.game.history.pop();
             if (winnings > 0) {
                 const maskedPhone = maskPhoneNumber(phone);
@@ -455,11 +440,10 @@
         function updateHistory(history) {
             const historyDiv = document.getElementById('history');
             historyDiv.innerHTML = '';
-            history.slice(0, 5).forEach(item => {
+            history.slice(0, 5).forEach(number => {
                 const div = document.createElement('div');
                 div.className = 'history-item';
-                div.style.backgroundColor = item.color;
-                div.innerHTML = item.number;
+                div.innerHTML = number;
                 historyDiv.appendChild(div);
             });
         }
@@ -510,31 +494,9 @@
             });
         }
 
-        function showDepositModal() { document.getElementById('depositModal').style.display = 'flex'; }
         function showWithdrawModal() { document.getElementById('withdrawModal').style.display = 'flex'; }
         function showSupportModal() { document.getElementById('supportModal').style.display = 'flex'; updateSupportChatLog(); }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-
-        async function submitDeposit() {
-            const amount = parseInt(document.getElementById('deposit-amount').value);
-            const transactionId = document.getElementById('transaction-id').value;
-            if (amount < 100 || transactionId.length !== 6) return;
-            const data = await fetchData();
-            if (Object.values(data.requests).some(req => req.transactionId === transactionId)) {
-                data.users[userId].warnings = (data.users[userId].warnings || 0) + 1;
-                if (data.users[userId].warnings >= 3) data.users[userId].banUntil = Date.now() + 30 * 60 * 1000;
-                await updateData(data);
-                alert('Transaction ID ထပ်သုံးမှု တွေ့ရှိပါသည်။');
-                return;
-            }
-            const requestId = `${userId}_${Date.now()}`;
-            data.requests[requestId] = { userId, phone, amount, transactionId, type: 'deposit', status: 'pending', timestamp: Date.now() };
-            data.transactions[userId] = data.transactions[userId] || [];
-            data.transactions[userId].push({ type: 'deposit', amount, transactionId, status: 'pending', timestamp: Date.now() });
-            await updateData(data);
-            closeModal('depositModal');
-            updateUI();
-        }
 
         async function submitWithdraw() {
             const amount = parseInt(document.getElementById('withdraw-amount').value);
