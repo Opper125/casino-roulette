@@ -207,7 +207,7 @@
             bets = userData.bets || {};
             totalBet = userData.totalBet || 0;
             users[userId] = userData;
-            data.game.onlinePlayers = Object.keys(users).length; // Accurate online player count
+            data.game.onlinePlayers = Object.keys(users).length;
             await updateData({ users, game: data.game });
             localStorage.setItem('loggedInUser', userId);
             localStorage.setItem('phone', phone);
@@ -274,30 +274,45 @@
                 }
                 let game = data.game;
                 gameState = game.state;
-                timeLeft = game.timeLeft > 0 ? game.timeLeft - 1 : 0; // Smooth 1-second countdown
+                timeLeft = game.timeLeft > 0 ? game.timeLeft - 1 : 0;
                 if (timeLeft === 0) {
                     if (gameState === 'betting') {
                         gameState = 'spinning';
                         timeLeft = 8;
-                        game.result = game.result || Math.floor(Math.random() * 37); // Stable result
+                        const users = data.users || {};
+                        const allBets = {};
+                        Object.values(users).forEach(user => {
+                            Object.entries(user.bets || {}).forEach(([key, value]) => {
+                                allBets[key] = (allBets[key] || 0) + value;
+                            });
+                        });
+                        const sortedBets = Object.entries(allBets).sort((a, b) => b[1] - a[1]); // Sort by bet amount
+                        const topBets = sortedBets.slice(0, Math.ceil(sortedBets.length / 2)).map(([key]) => key); // Top half of bets
+                        let nextResult;
+                        do {
+                            nextResult = Math.floor(Math.random() * 37);
+                        } while (topBets.includes(String(nextResult)) || (topBets.includes('red') && nextResult % 2 === 0 && nextResult !== 0) || (topBets.includes('black') && nextResult % 2 === 1));
+                        game.nextResult = nextResult; // Set next result for Admin preview
                     } else if (gameState === 'spinning') {
                         gameState = 'result';
                         timeLeft = 2;
+                        game.result = game.nextResult; // Use pre-calculated result
                     } else {
                         gameState = 'betting';
                         timeLeft = 30;
                         game.result = null;
+                        game.nextResult = null;
                         totalBet = 0;
                         const users = data.users || {};
                         Object.values(users).forEach(user => user.totalBet = 0);
                         await updateData({ users });
                     }
                 }
-                game = { ...game, state: gameState, timeLeft, onlinePlayers: Object.keys(data.users || {}).length, result: game.result, adminStarted: true };
+                game = { ...game, state: gameState, timeLeft, onlinePlayers: Object.keys(data.users || {}).length, result: game.result, adminStarted: true, nextResult: game.nextResult };
                 data.users[userId].lastActive = Date.now();
                 await updateData({ game, users: data.users });
                 await updateUI();
-            }, 1000); // 1-second interval for smooth operation
+            }, 1000);
         }
 
         function setupBetTable() {
@@ -332,12 +347,12 @@
         }
 
         async function placeBet(id) {
-            if (gameState !== 'betting' || timeLeft <= 5) return; // Allow betting until last 5 seconds
+            if (gameState !== 'betting' || timeLeft <= 5) return;
             const chip = parseInt(document.querySelector('.chip.active')?.dataset.value);
             if (!chip || balance < chip) return;
             const data = await fetchData();
             const user = data.users[userId];
-            if (user.balance < chip) return; // Double-check balance
+            if (user.balance < chip) return;
             user.balance -= chip;
             bets[id] = (bets[id] || 0) + chip;
             user.bets = bets;
@@ -379,7 +394,7 @@
             users[userId].totalBet = totalBet;
             balance = users[userId].balance;
             data.game.history = data.game.history || [];
-            if (!data.game.history.includes(result)) data.game.history.unshift(result); // Unique result per round
+            if (!data.game.history.includes(result)) data.game.history.unshift(result);
             if (data.game.history.length > 5) data.game.history.pop();
             if (winnings > 0) {
                 const maskedPhone = maskPhoneNumber(phone);
