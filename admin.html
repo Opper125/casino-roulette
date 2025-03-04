@@ -217,11 +217,14 @@
                 alert('ဒီဖုန်းနံပတ်နဲ့ အကောင့်မရှိပါ');
                 return;
             }
-            data.users[userId].balance += amount;
-            data.transactions[userId] = data.transactions[userId] || [];
-            data.transactions[userId].push({ type: 'deposit', amount, status: 'approved', timestamp: Date.now() });
-            data.users[userId].messages.push({ from: 'admin', text: `ငွေသွင်း ${amount} MMK အတည်`, timestamp: Date.now() });
-            await updateData(data);
+            // Update user balance directly
+            const users = data.users || {};
+            users[userId].balance = (users[userId].balance || 0) + amount;
+            users[userId].transactions = users[userId].transactions || [];
+            users[userId].transactions.push({ type: 'deposit', amount, status: 'approved', timestamp: Date.now() });
+            users[userId].messages = users[userId].messages || [];
+            users[userId].messages.push({ from: 'admin', text: `ငွေသွင်း ${amount} MMK အတည်`, timestamp: Date.now() });
+            await updateData({ users });
             document.getElementById('deposit-phone').value = '';
             document.getElementById('deposit-amount').value = '';
             alert(`User ${phone} သို့ ${amount} MMK သွင်းပြီး`);
