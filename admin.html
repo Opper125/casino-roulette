@@ -12,7 +12,7 @@
         button { padding: 8px 15px; background: linear-gradient(45deg, #ffd700, #b8860b); color: #000; border: none; border-radius: 5px; cursor: pointer; margin: 3px; font-weight: bold; font-size: 12px; }
         button:hover { transform: scale(1.03); }
         .support-section { margin-top: 15px; background: #333; padding: 10px; border-radius: 5px; }
-        select { padding: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; border-radius: 3px; font-size: 12px; }
+        select, input { padding: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; border-radius: 3px; font-size: 12px; }
         .support-user { cursor: pointer; padding: 5px; background: #444; margin: 3px; border-radius: 3px; font-size: 12px; }
         .support-user:hover { background: #666; }
         .chat-log { max-height: 150px; overflow-y: auto; margin-top: 5px; font-size: 12px; }
@@ -35,7 +35,12 @@
             </select>
             <button onclick="setResult()">✔️ အတည်</button>
         </div>
-        <div id="deposit-requests"><h3>Deposit Requests</h3></div>
+        <div id="deposit-control">
+            <h3>ငွေသွင်း</h3>
+            <input type="text" id="deposit-phone" placeholder="ဖုန်းနံပတ် (09xxxxxxxxx)">
+            <input type="number" id="deposit-amount" placeholder="ငွေပမာဏ (MMK)">
+            <button onclick="submitAdminDeposit()">✔️ သွင်းမည်</button>
+        </div>
         <div id="withdraw-requests"><h3>Withdraw Requests</h3></div>
         <div id="support-users">
             <h3>Customer Support</h3>
@@ -104,20 +109,15 @@
                 document.getElementById('online-players').innerHTML = `Online Players: ${data.game.onlinePlayers || 0}`;
 
                 const requests = data.requests || {};
-                const depositDiv = document.getElementById('deposit-requests');
                 const withdrawDiv = document.getElementById('withdraw-requests');
-                depositDiv.innerHTML = '<h3>Deposit Requests</h3>';
                 withdrawDiv.innerHTML = '<h3>Withdraw Requests</h3>';
                 Object.entries(requests).forEach(([id, req]) => {
-                    if (req.status === 'pending') {
+                    if (req.status === 'pending' && req.type === 'withdraw') {
                         const div = document.createElement('div');
                         div.className = 'request';
-                        div.innerHTML = req.type === 'deposit' ?
-                            `User: ${req.userId.substr(0, 8)}... (Phone: ${maskPhoneNumber(req.phone)})<br>Amount: ${req.amount} MMK<br>TxID: ${req.transactionId}<br>
-                            <button onclick="approveRequest('${id}', 'deposit')">✅</button><button onclick="rejectRequest('${id}')">❌</button>` :
-                            `User: ${req.userId.substr(0, 8)}... (Phone: ${maskPhoneNumber(req.withdrawPhone)})<br>Amount: ${req.amount} MMK<br>
+                        div.innerHTML = `User: ${req.userId.substr(0, 8)}... (Phone: ${maskPhoneNumber(req.withdrawPhone)})<br>Amount: ${req.amount} MMK<br>
                             <button onclick="approveRequest('${id}', 'withdraw')">✅</button><button onclick="rejectRequest('${id}')">❌</button>`;
-                        req.type === 'deposit' ? depositDiv.appendChild(div) : withdrawDiv.appendChild(div);
+                        withdrawDiv.appendChild(div);
                     }
                 });
 
@@ -160,16 +160,12 @@
             const data = await fetchData();
             const req = data.requests[id];
             if (!req || !data.users[req.userId]) return;
-            if (type === 'deposit') {
-                data.users[req.userId].balance += req.amount;
-                data.transactions[req.userId].find(tx => tx.transactionId === req.transactionId).status = 'approved';
-            } else if (type === 'withdraw') {
+            if (type === 'withdraw') {
                 data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'approved';
+                data.users[req.userId].messages.push({ from: 'admin', text: `ငွေထုတ် ${req.amount} MMK အတည်`, timestamp: Date.now() });
             }
-            data.users[req.userId].messages.push({ from: 'admin', text: `${type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'} ${req.amount} MMK အတည်`, timestamp: Date.now() });
             req.status = 'approved';
             await updateData(data);
-            await updateData({ users: data.users });
         }
 
         async function rejectRequest(id) {
@@ -179,13 +175,10 @@
             if (req.type === 'withdraw') {
                 data.users[req.userId].balance += req.amount;
                 data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'rejected';
-            } else if (req.type === 'deposit') {
-                data.transactions[req.userId].find(tx => tx.transactionId === req.transactionId).status = 'rejected';
+                data.users[req.userId].messages.push({ from: 'admin', text: `ငွေထုတ် ${req.amount} MMK ငြင်းပယ်`, timestamp: Date.now() });
             }
-            data.users[req.userId].messages.push({ from: 'admin', text: `${req.type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'} ${req.amount} MMK ငြင်းပယ်`, timestamp: Date.now() });
             req.status = 'rejected';
             await updateData(data);
-            await updateData({ users: data.users });
         }
 
         async function setResult() {
@@ -201,14 +194,37 @@
         }
 
         async function resetServer() {
+            const data = await fetchData();
             await updateData({
-                users: {},
                 requests: {},
                 messages: [],
-                game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [] },
+                game: { state: 'betting', timeLeft: 30, onlinePlayers: data.game.onlinePlayers, result: null, adminStarted: false, history: [] },
                 transactions: {}
             });
             alert('Server အသစ်စတင်ပြီး');
+        }
+
+        async function submitAdminDeposit() {
+            const phone = document.getElementById('deposit-phone').value;
+            const amount = parseInt(document.getElementById('deposit-amount').value);
+            if (!phone.match(/^09\d{8,9}$/) || amount < 100) {
+                alert('ဖုန်းနံပတ် သို့မဟုတ် ငွေပမာဏ မမှန်ပါ');
+                return;
+            }
+            const data = await fetchData();
+            const userId = Object.entries(data.users || {}).find(([_, user]) => user.phone === phone)?.[0];
+            if (!userId) {
+                alert('ဒီဖုန်းနံပတ်နဲ့ အကောင့်မရှိပါ');
+                return;
+            }
+            data.users[userId].balance += amount;
+            data.transactions[userId] = data.transactions[userId] || [];
+            data.transactions[userId].push({ type: 'deposit', amount, status: 'approved', timestamp: Date.now() });
+            data.users[userId].messages.push({ from: 'admin', text: `ငွေသွင်း ${amount} MMK အတည်`, timestamp: Date.now() });
+            await updateData(data);
+            document.getElementById('deposit-phone').value = '';
+            document.getElementById('deposit-amount').value = '';
+            alert(`User ${phone} သို့ ${amount} MMK သွင်းပြီး`);
         }
 
         function openSupportChat(userId) {
@@ -244,9 +260,7 @@
             });
         }
 
-        window.onload = async () => {
-            const data = await fetchData();
-            if (!data.game.adminStarted) startGame();
+        window.onload = () => {
             manageGameServer();
         };
     </script>
