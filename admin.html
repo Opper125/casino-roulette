@@ -61,8 +61,10 @@
         const BASE_URL = 'https://casino-opper.netlify.app';
         const DATA_API = `${BASE_URL}/.netlify/functions/data`;
         let selectedUserId = null;
+        let offlineQueue = [];
 
         async function fetchData(retries = 5) {
+            if (!navigator.onLine) return JSON.parse(localStorage.getItem('offlineData') || '{}');
             for (let i = 0; i < retries; i++) {
                 try {
                     const response = await fetch(DATA_API, { cache: 'no-store' });
@@ -78,6 +80,13 @@
         }
 
         async function updateData(updates, retries = 5) {
+            if (!navigator.onLine) {
+                offlineQueue.push(updates);
+                let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
+                localData = mergeData(localData, updates);
+                localStorage.setItem('offlineData', JSON.stringify(localData));
+                return localData;
+            }
             for (let i = 0; i < retries; i++) {
                 try {
                     const response = await fetch(DATA_API, {
@@ -92,8 +101,9 @@
                     return data;
                 } catch (e) {
                     if (i === retries - 1) {
+                        offlineQueue.push(updates);
                         let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
-                        localData = { ...localData, ...updates };
+                        localData = mergeData(localData, updates);
                         localStorage.setItem('offlineData', JSON.stringify(localData));
                         return localData;
                     }
@@ -101,6 +111,25 @@
                 }
             }
         }
+
+        function mergeData(existing, updates) {
+            return {
+                ...existing,
+                ...updates,
+                users: { ...existing.users, ...(updates.users || {}) },
+                transactions: { ...existing.transactions, ...(updates.transactions || {}) },
+                requests: { ...existing.requests, ...(updates.requests || {}) },
+                messages: [...(existing.messages || []), ...(updates.messages || [])],
+                game: { ...existing.game, ...(updates.game || {}) }
+            };
+        }
+
+        window.addEventListener('online', async () => {
+            while (offlineQueue.length > 0) {
+                const updates = offlineQueue.shift();
+                await updateData(updates);
+            }
+        });
 
         function manageGameServer() {
             setInterval(async () => {
@@ -122,11 +151,6 @@
                         withdrawDiv.appendChild(div);
                     }
                 });
-
-                Object.keys(requests).forEach(id => {
-                    if (requests[id].status !== 'pending') delete requests[id];
-                });
-                await updateData({ requests });
 
                 const userList = document.getElementById('user-list');
                 userList.innerHTML = '';
@@ -163,11 +187,13 @@
             const req = data.requests[id];
             if (!req || !data.users[req.userId]) return;
             if (type === 'withdraw') {
-                data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'approved';
+                data.transactions[req.userId] = data.transactions[req.userId] || [];
+                const tx = data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp);
+                if (tx) tx.status = 'approved';
                 data.users[req.userId].messages.push({ from: 'admin', text: `ငွေထုတ် ${req.amount} MMK အတည်`, timestamp: Date.now() });
             }
             req.status = 'approved';
-            await updateData(data);
+            await updateData({ requests: data.requests, transactions: data.transactions, users: data.users });
         }
 
         async function rejectRequest(id) {
@@ -176,11 +202,13 @@
             if (!req || !data.users[req.userId]) return;
             if (req.type === 'withdraw') {
                 data.users[req.userId].balance += req.amount;
-                data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'rejected';
+                data.transactions[req.userId] = data.transactions[req.userId] || [];
+                const tx = data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp);
+                if (tx) tx.status = 'rejected';
                 data.users[req.userId].messages.push({ from: 'admin', text: `ငွေထုတ် ${req.amount} MMK ငြင်းပယ်`, timestamp: Date.now() });
             }
             req.status = 'rejected';
-            await updateData(data);
+            await updateData({ requests: data.requests, transactions: data.transactions, users: data.users });
         }
 
         async function setResult() {
@@ -196,6 +224,7 @@
         }
 
         async function resetServer() {
+            if (!confirm('ဆာဗာကို အသစ်စတင်မှာလား။ ဒေတာအားလုံး ပျက်သွားပါမယ်။')) return;
             const data = await fetchData();
             await updateData({
                 requests: {},
@@ -221,11 +250,12 @@
             }
             const users = data.users || {};
             users[userId].balance = (users[userId].balance || 0) + amount;
-            users[userId].transactions = usersУдалить[userId].transactions || [];
-            users[userId].transactions.push({ type: 'deposit', amount, status: 'approved', timestamp: Date.now() });
+            users[userId].transactions = users[userId].transactions || [];
+            const txId = `${userId}_${Date.now()}`;
+            users[userId].transactions.push({ id: txId, type: 'deposit', amount, status: 'approved', timestamp: Date.now() });
             users[userId].messages = users[userId].messages || [];
             users[userId].messages.push({ from: 'admin', text: `ငွေသွင်း ${amount} MMK အတည်`, timestamp: Date.now() });
-            await updateData({ users }); // Ensure server update
+            await updateData({ users });
             document.getElementById('deposit-phone').value = '';
             document.getElementById('deposit-amount').value = '';
             alert(`User ${phone} သို့ ${amount} MMK သွင်းပြီး`);
@@ -245,7 +275,8 @@
             }
             user.balance -= amount;
             user.transactions = user.transactions || [];
-            user.transactions.push({ type: 'withdraw', amount, status: 'approved', timestamp: Date.now() });
+            const txId = `${userId}_${Date.now()}`;
+            user.transactions.push({ id: txId, type: 'withdraw', amount, status: 'approved', timestamp: Date.now() });
             user.messages.push({ from: 'admin', text: `ငွေထုတ် ${amount} MMK အတည်`, timestamp: Date.now() });
             data.users[userId] = user;
             await updateData({ users: data.users });
@@ -266,7 +297,7 @@
             const data = await fetchData();
             data.users[selectedUserId].messages = data.users[selectedUserId].messages || [];
             data.users[selectedUserId].messages.push({ from: 'admin', text: message, timestamp: Date.now() });
-            await updateData(data);
+            await updateData({ users: data.users });
             document.getElementById('admin-support-input').value = '';
             updateAdminChatLog();
         }
