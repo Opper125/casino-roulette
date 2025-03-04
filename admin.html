@@ -25,6 +25,7 @@
         <h1>🎰 Admin Dashboard</h1>
         <div id="game-status">Game Status: <span id="state">Betting</span> | Time Left: <span id="timeLeft">30s</span></div>
         <div id="online-players">Online Players: 0</div>
+        <div id="next-result">Next Spin Result: <span id="next-result-number">N/A</span></div>
         <button onclick="startGame()">▶️ Start</button>
         <button onclick="stopGame()">⏹️ Stop</button>
         <div id="result-control">
@@ -106,7 +107,8 @@
                 const data = await fetchData();
                 document.getElementById('state').innerHTML = data.game.state;
                 document.getElementById('timeLeft').innerHTML = `${data.game.timeLeft}s`;
-                document.getElementById('online-players').innerHTML = `Online Players: ${data.game.onlinePlayers || 0}`;
+                document.getElementById('online-players').innerHTML = `Online Players: ${Object.keys(data.users || {}).length}`;
+                document.getElementById('next-result-number').innerHTML = data.game.nextResult !== null ? data.game.nextResult : 'N/A';
 
                 const requests = data.requests || {};
                 const withdrawDiv = document.getElementById('withdraw-requests');
@@ -129,15 +131,15 @@
                 const userList = document.getElementById('user-list');
                 userList.innerHTML = '';
                 Object.entries(data.users || {}).forEach(([id, user]) => {
-                    if (user.messages && user.messages.length > 0) {
-                        const div = document.createElement('div');
-                        div.className = 'support-user';
-                        div.innerHTML = `User: ${id.substr(0, 8)}... (Phone: ${maskPhoneNumber(user.phone)})`;
-                        div.onclick = () => openSupportChat(id);
-                        userList.appendChild(div);
-                    }
+                    const div = document.createElement('div');
+                    div.className = 'support-user';
+                    div.innerHTML = `User: ${id.substr(0, 8)}... (Phone: ${maskPhoneNumber(user.phone)}) | Balance: ${user.balance || 0} MMK
+                        <input type="number" id="withdraw-${id}" placeholder="ငွေပမာဏ (MMK)" style="width: 100px;">
+                        <button onclick="submitAdminWithdraw('${id}')">🏦 ထုတ်မည်</button>`;
+                    div.onclick = (e) => { if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') openSupportChat(id); };
+                    userList.appendChild(div);
                 });
-            }, 500);
+            }, 1000);
         }
 
         function maskPhoneNumber(phone) {
@@ -152,7 +154,7 @@
 
         async function stopGame() {
             const data = await fetchData();
-            await updateData({ game: { ...data.game, adminStarted: false, state: 'betting', timeLeft: 30, result: null } });
+            await updateData({ game: { ...data.game, adminStarted: false, state: 'betting', timeLeft: 30, result: null, nextResult: null } });
             alert('ဂိမ်းရပ်တန့်ပြီး');
         }
 
@@ -198,7 +200,7 @@
             await updateData({
                 requests: {},
                 messages: [],
-                game: { state: 'betting', timeLeft: 30, onlinePlayers: data.game.onlinePlayers, result: null, adminStarted: false, history: [] },
+                game: { state: 'betting', timeLeft: 30, onlinePlayers: Object.keys(data.users || {}).length, result: null, adminStarted: false, history: [], nextResult: null },
                 transactions: {}
             });
             alert('Server အသစ်စတင်ပြီး');
@@ -217,17 +219,37 @@
                 alert('ဒီဖုန်းနံပတ်နဲ့ အကောင့်မရှိပါ');
                 return;
             }
-            // Update user balance directly
             const users = data.users || {};
             users[userId].balance = (users[userId].balance || 0) + amount;
             users[userId].transactions = users[userId].transactions || [];
             users[userId].transactions.push({ type: 'deposit', amount, status: 'approved', timestamp: Date.now() });
-            users[userId].messages = users[userId].messages || [];
             users[userId].messages.push({ from: 'admin', text: `ငွေသွင်း ${amount} MMK အတည်`, timestamp: Date.now() });
             await updateData({ users });
             document.getElementById('deposit-phone').value = '';
             document.getElementById('deposit-amount').value = '';
             alert(`User ${phone} သို့ ${amount} MMK သွင်းပြီး`);
+        }
+
+        async function submitAdminWithdraw(userId) {
+            const amount = parseInt(document.getElementById(`withdraw-${userId}`).value);
+            if (!amount || amount < 100) {
+                alert('ငွေပမာဏ မမှန်ပါ');
+                return;
+            }
+            const data = await fetchData();
+            const user = data.users[userId];
+            if (!user || user.balance < amount) {
+                alert('လက်ကျန်ငွေ မလုံလောက်ပါ');
+                return;
+            }
+            user.balance -= amount;
+            user.transactions = user.transactions || [];
+            user.transactions.push({ type: 'withdraw', amount, status: 'approved', timestamp: Date.now() });
+            user.messages.push({ from: 'admin', text: `ငွေထုတ် ${amount} MMK အတည်`, timestamp: Date.now() });
+            data.users[userId] = user;
+            await updateData({ users: data.users });
+            document.getElementById(`withdraw-${userId}`).value = '';
+            alert(`User ${maskPhoneNumber(user.phone)} မှ ${amount} MMK ထုတ်ပြီး`);
         }
 
         function openSupportChat(userId) {
