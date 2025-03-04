@@ -56,7 +56,7 @@
         const DATA_API = `${BASE_URL}/.netlify/functions/data`;
         let selectedUserId = null;
 
-        async function fetchData(retries = 3) {
+        async function fetchData(retries = 5) {
             for (let i = 0; i < retries; i++) {
                 try {
                     const response = await fetch(DATA_API, { cache: 'no-store' });
@@ -69,13 +69,14 @@
             }
         }
 
-        async function updateData(updates, retries = 3) {
+        async function updateData(updates, retries = 5) {
             for (let i = 0; i < retries; i++) {
                 try {
                     const response = await fetch(DATA_API, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(updates),
+                        timeout: 5000
                     });
                     if (!response.ok) throw new Error('Update failed');
                     return await response.json();
@@ -128,7 +129,7 @@
                         userList.appendChild(div);
                     }
                 });
-            }, 500); // Faster polling
+            }, 500);
         }
 
         async function startGame() {
@@ -156,7 +157,7 @@
             data.users[req.userId].messages.push({ from: 'admin', text: `${type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'} ${req.amount} MMK အတည်ပြုပြီးပါပြီ။`, timestamp: Date.now() });
             req.status = 'approved';
             await updateData(data);
-            updateUIForUser(req.userId);
+            await updateData({ users: data.users }); // အသုံးပြုသူဆီ ချက်ချင်း ပို့
         }
 
         async function rejectRequest(id) {
@@ -172,7 +173,7 @@
             data.users[req.userId].messages.push({ from: 'admin', text: `${req.type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'} ${req.amount} MMK ငြင်းပယ်ခံရပါသည်။`, timestamp: Date.now() });
             req.status = 'rejected';
             await updateData(data);
-            updateUIForUser(req.userId);
+            await updateData({ users: data.users }); // အသုံးပြုသူဆီ ချက်ချင်း ပို့
         }
 
         async function setResult() {
@@ -231,13 +232,6 @@
             });
         }
 
-        async function updateUIForUser(userId) {
-            const data = await fetchData();
-            const user = data.users[userId];
-            // This function assumes user-info.html and index.html update via their own polling
-        }
-
-        // Auto-start game on admin load
         window.onload = async () => {
             const data = await fetchData();
             if (!data.game.adminStarted) startGame();
