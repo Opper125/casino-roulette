@@ -3,11 +3,17 @@
 [functions]
   directory = "functions"
   node_bundler = "esbuild"
+  external_node_modules = []
+  [functions.data]
+    timeout = 15  # Increased timeout for reliability
+
 [dev]
   framework = "#static"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
 [context.production.environment]
-  NODE_VERSION = "18"  # Updated to latest stable version
+  NODE_VERSION = "18"
