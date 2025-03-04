@@ -1,0 +1,10 @@
+let casinoData = {
+    users: {},
+    requests: {},
+    messages: [],
+    games: {
+        roulette: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, history: [], nextResult: null },
+        slots: { state: 'idle', credits: 0, lastSpin: null }
+    },
+    transactions: {}
+};
