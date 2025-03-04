@@ -117,28 +117,20 @@
     <script src="sw.js"></script>
     <script>
         const BASE_URL = 'https://casino-opper.netlify.app';
-        const WS_URL = 'wss://casino-opper.netlify.app/.netlify/functions/websocket';
-        let socket;
 
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js').then(() => console.log('Service Worker Registered'));
         }
 
-        async function initWebSocket() {
-            socket = new WebSocket(WS_URL);
-            socket.onopen = () => console.log('WebSocket Connected');
-            socket.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                updateUI(data);
-            };
-            socket.onclose = () => setTimeout(initWebSocket, 1000);
-        }
-
         async function fetchData() {
-            const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
-            const data = await response.json();
-            localStorage.setItem('offlineData', JSON.stringify(data));
-            return data;
+            try {
+                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
+                const data = await response.json();
+                localStorage.setItem('offlineData', JSON.stringify(data));
+                return data;
+            } catch (e) {
+                return JSON.parse(localStorage.getItem('offlineData') || '{}');
+            }
         }
 
         async function updateData(updates) {
@@ -150,21 +142,12 @@
                 });
                 const data = await response.json();
                 localStorage.setItem('offlineData', JSON.stringify(data));
-                socket.send(JSON.stringify(updates));
                 return data;
             } else {
                 let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
                 localData = { ...localData, ...updates };
                 localStorage.setItem('offlineData', JSON.stringify(localData));
                 return localData;
-            }
-        }
-
-        function updateUI(data) {
-            const userId = localStorage.getItem('loggedInUser');
-            if (userId && data.users[userId]) {
-                document.getElementById('user-phone').innerHTML = maskPhoneNumber(data.users[userId].phone);
-                document.getElementById('user-balance').innerHTML = data.users[userId].balance || 0;
             }
         }
 
@@ -176,7 +159,10 @@
             const userId = localStorage.getItem('loggedInUser');
             if (userId) {
                 const data = await fetchData();
-                updateUI(data);
+                if (data.users && data.users[userId]) {
+                    document.getElementById('user-phone').innerHTML = maskPhoneNumber(data.users[userId].phone);
+                    document.getElementById('user-balance').innerHTML = data.users[userId].balance || 0;
+                }
             } else {
                 window.location.href = 'login.html';
             }
@@ -200,18 +186,18 @@
             const withdrawPhone = document.getElementById('withdraw-phone').value;
             const userId = localStorage.getItem('loggedInUser');
             const data = await fetchData();
-            if (amount < 100 || amount > data.users[userId].balance || !withdrawPhone) return;
+            if (!data.users || !data.users[userId] || amount < 100 || amount > data.users[userId].balance || !withdrawPhone) return;
             data.users[userId].balance -= amount;
             const requestId = `${userId}_${Date.now()}`;
+            data.requests = data.requests || {};
             data.requests[requestId] = { userId, phone: data.users[userId].phone, amount, withdrawPhone, type: 'withdraw', status: 'pending', timestamp: Date.now() };
             await updateData({ users: data.users, requests: data.requests });
             closeModal('withdrawModal');
-            updateUI(data);
+            checkLoggedIn();
         }
 
         window.onload = () => {
             checkLoggedIn();
-            initWebSocket();
         };
     </script>
 </body>
