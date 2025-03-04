@@ -72,7 +72,7 @@
                     return data;
                 } catch (e) {
                     if (i === retries - 1) return JSON.parse(localStorage.getItem('offlineData') || '{}');
-                    await new Promise(res => setTimeout(res, 300));
+                    await new Promise(res => setTimeout(res, 500));
                 }
             }
         }
@@ -97,7 +97,7 @@
                         localStorage.setItem('offlineData', JSON.stringify(localData));
                         return localData;
                     }
-                    await new Promise(res => setTimeout(res, 300));
+                    await new Promise(res => setTimeout(res, 500));
                 }
             }
         }
@@ -221,10 +221,11 @@
             }
             const users = data.users || {};
             users[userId].balance = (users[userId].balance || 0) + amount;
-            users[userId].transactions = users[userId].transactions || [];
+            users[userId].transactions = usersУдалить[userId].transactions || [];
             users[userId].transactions.push({ type: 'deposit', amount, status: 'approved', timestamp: Date.now() });
+            users[userId].messages = users[userId].messages || [];
             users[userId].messages.push({ from: 'admin', text: `ငွေသွင်း ${amount} MMK အတည်`, timestamp: Date.now() });
-            await updateData({ users });
+            await updateData({ users }); // Ensure server update
             document.getElementById('deposit-phone').value = '';
             document.getElementById('deposit-amount').value = '';
             alert(`User ${phone} သို့ ${amount} MMK သွင်းပြီး`);
