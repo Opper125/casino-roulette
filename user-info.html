@@ -31,7 +31,7 @@
         const BASE_URL = 'https://casino-opper.netlify.app';
         const DATA_API = `${BASE_URL}/.netlify/functions/data`;
 
-        async function fetchData(retries = 3) {
+        async function fetchData(retries = 5) {
             for (let i = 0; i < retries; i++) {
                 try {
                     const response = await fetch(DATA_API, { cache: 'no-store' });
@@ -56,7 +56,7 @@
                     row.innerHTML = `<td>${id.substr(0, 8)}...</td><td>${user.phone}</td><td>${user.balance}</td><td>${user.totalBet || 0}</td><td>${new Date(user.lastActive).toLocaleString()}</td><td>${user.warnings || 0}</td><td>${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}</td>`;
                     userList.appendChild(row);
                 });
-            }, 500); // Faster polling for real-time updates
+            }, 500);
         }
 
         async function exportUserData() {
