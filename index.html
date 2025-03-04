@@ -207,7 +207,7 @@
             bets = userData.bets || {};
             totalBet = userData.totalBet || 0;
             users[userId] = userData;
-            data.game.onlinePlayers = (data.game.onlinePlayers || 0) + 1;
+            data.game.onlinePlayers = Object.keys(users).length; // Accurate online player count
             await updateData({ users, game: data.game });
             localStorage.setItem('loggedInUser', userId);
             localStorage.setItem('phone', phone);
@@ -221,7 +221,8 @@
         function logout() {
             localStorage.removeItem('loggedInUser');
             fetchData().then(data => {
-                data.game.onlinePlayers = Math.max(0, (data.game.onlinePlayers || 0) - 1);
+                const users = data.users || {};
+                data.game.onlinePlayers = Object.keys(users).length - 1 >= 0 ? Object.keys(users).length - 1 : 0;
                 updateData({ game: data.game });
             });
             window.location.reload();
@@ -240,7 +241,7 @@
             }
             document.getElementById('betTable').style.display = 'grid';
             const user = data.users[userId];
-            balance = user.balance || 0;  // Ensure balance is always updated from server
+            balance = user.balance || 0;
             bets = user.bets || {};
             totalBet = user.totalBet || 0;
             document.getElementById('balance-value').innerHTML = balance;
@@ -273,12 +274,12 @@
                 }
                 let game = data.game;
                 gameState = game.state;
-                timeLeft = game.timeLeft > 0 ? game.timeLeft - 0.5 : 0;
+                timeLeft = game.timeLeft > 0 ? game.timeLeft - 1 : 0; // Smooth 1-second countdown
                 if (timeLeft === 0) {
                     if (gameState === 'betting') {
                         gameState = 'spinning';
                         timeLeft = 8;
-                        game.result = Math.floor(Math.random() * 37); // Auto-spin result
+                        game.result = game.result || Math.floor(Math.random() * 37); // Stable result
                     } else if (gameState === 'spinning') {
                         gameState = 'result';
                         timeLeft = 2;
@@ -292,11 +293,11 @@
                         await updateData({ users });
                     }
                 }
-                game = { ...game, state: gameState, timeLeft, onlinePlayers: game.onlinePlayers || 0, result: game.result, adminStarted: true };
+                game = { ...game, state: gameState, timeLeft, onlinePlayers: Object.keys(data.users || {}).length, result: game.result, adminStarted: true };
                 data.users[userId].lastActive = Date.now();
                 await updateData({ game, users: data.users });
                 await updateUI();
-            }, 500);
+            }, 1000); // 1-second interval for smooth operation
         }
 
         function setupBetTable() {
@@ -331,14 +332,19 @@
         }
 
         async function placeBet(id) {
-            if (gameState !== 'betting' || timeLeft <= 5 || balance <= 0) return;
+            if (gameState !== 'betting' || timeLeft <= 5) return; // Allow betting until last 5 seconds
             const chip = parseInt(document.querySelector('.chip.active')?.dataset.value);
             if (!chip || balance < chip) return;
-            balance -= chip;
-            bets[id] = (bets[id] || 0) + chip;
-            totalBet += chip;
             const data = await fetchData();
-            data.users[userId] = { ...data.users[userId], balance, bets, totalBet, lastActive: Date.now() };
+            const user = data.users[userId];
+            if (user.balance < chip) return; // Double-check balance
+            user.balance -= chip;
+            bets[id] = (bets[id] || 0) + chip;
+            user.bets = bets;
+            user.totalBet = (user.totalBet || 0) + chip;
+            balance = user.balance;
+            totalBet = user.totalBet;
+            data.users[userId] = user;
             await updateData({ users: data.users });
             updateUI();
         }
@@ -364,16 +370,16 @@
                 if (bets['1-18'] && result <= 18) winnings += bets['1-18'] * 2;
                 if (bets['19-36'] && result > 18) winnings += bets['19-36'] * 2;
             }
-            balance += winnings;
             const users = data.users || {};
+            users[userId].balance += winnings;
             users[userId].totalWinnings = (users[userId].totalWinnings || 0) + winnings;
             bets = {};
             totalBet = 0;
-            users[userId].balance = balance;
             users[userId].bets = bets;
             users[userId].totalBet = totalBet;
+            balance = users[userId].balance;
             data.game.history = data.game.history || [];
-            data.game.history.unshift(result);
+            if (!data.game.history.includes(result)) data.game.history.unshift(result); // Unique result per round
             if (data.game.history.length > 5) data.game.history.pop();
             if (winnings > 0) {
                 const maskedPhone = maskPhoneNumber(phone);
@@ -503,9 +509,9 @@
             const amount = parseInt(document.getElementById('withdraw-amount').value);
             const withdrawPhone = document.getElementById('withdraw-phone').value;
             if (amount < 100 || amount > balance || !withdrawPhone) return;
-            balance -= amount;
             const data = await fetchData();
-            data.users[userId].balance = balance;
+            data.users[userId].balance -= amount;
+            balance = data.users[userId].balance;
             const requestId = `${userId}_${Date.now()}`;
             data.requests[requestId] = { userId, phone, amount, withdrawPhone, type: 'withdraw', status: 'pending', timestamp: Date.now() };
             data.transactions[userId] = data.transactions[userId] || [];
