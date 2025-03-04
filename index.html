@@ -3,45 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Casino Roulette - Powered by Netlify</title>
+    <title>Casino Roulette</title>
     <style>
         body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #1a1a1a, #2c003e); color: #ffd700; margin: 0; padding: 10px; }
-        .game-container { max-width: 600px; margin: auto; background: rgba(30, 30, 30, 0.9); padding: 20px; border-radius: 15px; box-shadow: 0 0 30px rgba(255, 215, 0, 0.7); text-align: center; }
-        h1 { font-size: 2em; text-shadow: 0 0 15px #ffd700; }
-        .roulette-wheel { margin: 20px auto; position: relative; }
+        .game-container { max-width: 600px; margin: auto; background: rgba(30, 30, 30, 0.9); padding: 15px; border-radius: 10px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); text-align: center; }
+        h1 { font-size: 1.5em; text-shadow: 0 0 10px #ffd700; margin: 0; }
+        .roulette-wheel { margin: 15px auto; position: relative; }
         canvas { display: block; margin: 0 auto; }
-        .bet-table { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin: 15px 0; }
-        .bet-area { padding: 10px; background: #444; border: 2px solid #ffd700; cursor: pointer; border-radius: 8px; transition: background 0.3s; position: relative; }
+        .bet-table { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; margin: 10px 0; }
+        .bet-area { padding: 8px; background: #444; border: 1px solid #ffd700; cursor: pointer; border-radius: 5px; transition: background 0.2s; position: relative; font-size: 12px; }
         .bet-area:hover { background: #666; }
-        .bet-amount { position: absolute; top: -10px; right: -10px; background: #ff4500; color: #fff; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-        .chip { width: 45px; height: 45px; border-radius: 50%; background: linear-gradient(45deg, #ffd700, #b8860b); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; margin: 5px; box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
-        .chip.active { border: 3px solid #fff; }
-        button { padding: 10px 20px; background: linear-gradient(45deg, #ffd700, #b8860b); color: #000; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; transition: transform 0.2s; }
-        button:hover { transform: scale(1.05); }
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: none; justify-content: center; align-items: center; }
-        .modal-content { background: #1e1e1e; padding: 25px; border-radius: 15px; color: #ffd700; width: 90%; max-width: 400px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
-        .chat-section { margin-top: 20px; background: #333; padding: 15px; border-radius: 10px; }
-        .chat-log { max-height: 200px; overflow-y: auto; margin-top: 10px; background: #444; padding: 10px; border-radius: 5px; }
-        .chat-message { padding: 5px; margin: 5px 0; border-radius: 5px; text-align: left; }
+        .bet-amount { position: absolute; top: -8px; right: -8px; background: #ff4500; color: #fff; border-radius: 50%; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+        .chip { width: 35px; height: 35px; border-radius: 50%; background: linear-gradient(45deg, #ffd700, #b8860b); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; margin: 3px; box-shadow: 0 0 5px rgba(255, 215, 0, 0.3); font-size: 12px; }
+        .chip.active { border: 2px solid #fff; }
+        button { padding: 8px 15px; background: linear-gradient(45deg, #ffd700, #b8860b); color: #000; border: none; border-radius: 5px; cursor: pointer; margin: 3px; font-weight: bold; transition: transform 0.1s; font-size: 12px; }
+        button:hover { transform: scale(1.03); }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: none; justify-content: center; align-items: center; }
+        .modal-content { background: #1e1e1e; padding: 15px; border-radius: 10px; color: #ffd700; width: 85%; max-width: 350px; box-shadow: 0 0 15px rgba(255, 215, 0, 0.3); }
+        .chat-section { margin-top: 15px; background: #333; padding: 10px; border-radius: 5px; }
+        .chat-log { max-height: 150px; overflow-y: auto; margin-top: 5px; background: #444; padding: 5px; border-radius: 3px; font-size: 12px; }
+        .chat-message { padding: 3px; margin: 3px 0; border-radius: 3px; text-align: left; }
         .chat-message.winner { background: #555; color: #00ff00; text-align: right; }
-        textarea { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; }
-        input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; }
-        #countdown { font-size: 2em; color: #ff4500; text-shadow: 0 0 10px #ff4500; animation: pulse 1s infinite; }
-        #history { display: flex; justify-content: center; margin: 10px 0; }
-        .history-item { width: 30px; height: 30px; border-radius: 50%; margin: 0 5px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-        #ball { position: absolute; width: 15px; height: 15px; background: #fff; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-        #win-animation { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2em; color: #00ff00; text-shadow: 0 0 10px #00ff00; animation: winPulse 1s infinite; display: none; }
-        .leaderboard { margin-top: 20px; background: #333; padding: 15px; border-radius: 10px; }
-        .leaderboard h3 { margin: 0; }
-        .leaderboard-item { display: flex; justify-content: space-between; padding: 5px; background: #444; margin: 5px 0; border-radius: 5px; }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes spinBall { 0% { transform: translate(-50%, -50%) rotate(0deg) translateX(100px) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg) translateX(100px) rotate(-360deg); } }
-        @keyframes winPulse { 0% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.2); } 100% { transform: translate(-50%, -50%) scale(1); } }
+        textarea, input { width: 100%; padding: 5px; margin: 3px 0; border-radius: 3px; background: #222; color: #ffd700; border: 1px solid #ffd700; font-size: 12px; }
+        #countdown { font-size: 1.5em; color: #ff4500; text-shadow: 0 0 5px #ff4500; animation: pulse 1s infinite; }
+        #history { display: flex; justify-content: center; margin: 5px 0; }
+        .history-item { width: 25px; height: 25px; border-radius: 50%; margin: 0 3px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+        #ball { position: absolute; width: 12px; height: 12px; background: #fff; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        #win-animation { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.5em; color: #00ff00; text-shadow: 0 0 5px #00ff00; animation: winPulse 1s infinite; display: none; }
+        .leaderboard { margin-top: 15px; background: #333; padding: 10px; border-radius: 5px; }
+        .leaderboard h3 { margin: 0; font-size: 14px; }
+        .leaderboard-item { display: flex; justify-content: space-between; padding: 3px; background: #444; margin: 3px 0; border-radius: 3px; font-size: 12px; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes spinBall { 0% { transform: translate(-50%, -50%) rotate(0deg) translateX(80px) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg) translateX(80px) rotate(-360deg); } }
+        @keyframes winPulse { 0% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.1); } 100% { transform: translate(-50%, -50%) scale(1); } }
     </style>
 </head>
 <body>
     <div class="game-container" id="game-container">
-        <h1>🎰 Casino Roulette 🎰</h1>
+        <h1>🎰 Casino Roulette</h1>
         <div id="online-players">Online Players: 0</div>
         <div id="balance">Balance: <span id="balance-value">0</span> MMK</div>
         <div id="total-bet">Total Bet: <span id="total-bet-value">0</span> MMK</div>
@@ -52,7 +51,7 @@
             <button onclick="logout()">🚪 Logout</button>
         </div>
         <div class="roulette-wheel">
-            <canvas id="wheel" width="300" height="300"></canvas>
+            <canvas id="wheel" width="250" height="250"></canvas>
             <div id="ball" style="display: none;"></div>
             <div id="countdown"></div>
         </div>
@@ -126,16 +125,18 @@
 
         async function fetchData(retries = 5) {
             if (!navigator.onLine) {
-                return new Promise(resolve => setTimeout(() => resolve(fetchData()), 1000));
+                return JSON.parse(localStorage.getItem('offlineData') || '{}');
             }
             for (let i = 0; i < retries; i++) {
                 try {
-                    const response = await fetch(DATA_API, { cache: 'no-store', timeout: 5000 });
+                    const response = await fetch(DATA_API, { cache: 'no-store', timeout: 3000 });
                     if (!response.ok) throw new Error('Network error');
-                    return await response.json();
+                    const data = await response.json();
+                    localStorage.setItem('offlineData', JSON.stringify(data));
+                    return data;
                 } catch (e) {
-                    if (i === retries - 1) alert('အင်တာနက် ချိတ်ဆက်မှု ပြဿနာ။ ထပ်ကြိုးစားပါ။');
-                    await new Promise(res => setTimeout(res, 500));
+                    if (i === retries - 1) return JSON.parse(localStorage.getItem('offlineData') || '{}');
+                    await new Promise(res => setTimeout(res, 300));
                 }
             }
         }
@@ -143,7 +144,10 @@
         async function updateData(updates, retries = 5) {
             if (!navigator.onLine) {
                 offlineQueue.push(updates);
-                return;
+                let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
+                localData = { ...localData, ...updates };
+                localStorage.setItem('offlineData', JSON.stringify(localData));
+                return localData;
             }
             for (let i = 0; i < retries; i++) {
                 try {
@@ -151,16 +155,21 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(updates),
-                        timeout: 5000
+                        timeout: 3000
                     });
                     if (!response.ok) throw new Error('Update failed');
-                    return await response.json();
+                    const data = await response.json();
+                    localStorage.setItem('offlineData', JSON.stringify(data));
+                    return data;
                 } catch (e) {
                     if (i === retries - 1) {
                         offlineQueue.push(updates);
-                        alert('ဒေတာ ပြင်ဆင်မှု မအောင်မြင်ပါ။ ခဏစောင့်ပါ။');
+                        let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
+                        localData = { ...localData, ...updates };
+                        localStorage.setItem('offlineData', JSON.stringify(localData));
+                        return localData;
                     }
-                    await new Promise(res => setTimeout(res, 500));
+                    await new Promise(res => setTimeout(res, 300));
                 }
             }
         }
@@ -174,7 +183,6 @@
         });
 
         function checkLoggedIn() {
-            if (!navigator.onLine) return alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
             const loggedInUser = localStorage.getItem('loggedInUser');
             if (loggedInUser) {
                 userId = loggedInUser;
@@ -188,7 +196,6 @@
                         drawWheel();
                         updateUI();
                     } else {
-                        localStorage.removeItem('loggedInUser');
                         document.getElementById('loginModal').style.display = 'flex';
                     }
                 });
@@ -196,7 +203,6 @@
         }
 
         async function login() {
-            if (!navigator.onLine) return alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
             phone = document.getElementById('phone').value;
             const pin = document.getElementById('pin').value;
             if (!phone.match(/^09\d{8,9}$/) || pin.length !== 6) {
@@ -210,7 +216,7 @@
                 return;
             }
             const users = data.users || {};
-            let userData = users[userId] || { balance: 0, bets: {}, phone, lastActive: Date.now(), warnings: 0, banUntil: 0, totalBet: 0, totalWinnings: 0, messages: [], transactions: [] };
+            let userData = users[userId] || { balance: 0, bets: {}, phone, pin, lastActive: Date.now(), warnings: 0, banUntil: 0, totalBet: 0, totalWinnings: 0, messages: [], transactions: [] };
             balance = userData.balance;
             bets = userData.bets || {};
             totalBet = userData.totalBet || 0;
@@ -219,6 +225,7 @@
             await updateData({ users, game: data.game });
             localStorage.setItem('loggedInUser', userId);
             localStorage.setItem('phone', phone);
+            localStorage.setItem('pin', pin);
             document.getElementById('loginModal').style.display = 'none';
             updateUI();
             syncGameState();
@@ -227,7 +234,6 @@
 
         function logout() {
             localStorage.removeItem('loggedInUser');
-            localStorage.removeItem('phone');
             fetchData().then(data => {
                 data.game.onlinePlayers = Math.max(0, (data.game.onlinePlayers || 0) - 1);
                 updateData({ game: data.game });
@@ -275,7 +281,6 @@
 
         async function syncGameState() {
             setInterval(async () => {
-                if (!navigator.onLine) return;
                 const data = await fetchData();
                 if (!data.game.adminStarted) {
                     document.getElementById('result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
@@ -341,7 +346,6 @@
         }
 
         async function placeBet(id) {
-            if (!navigator.onLine) return alert('အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။');
             if (gameState !== 'betting' || timeLeft <= 5 || balance <= 0) return;
             const chip = parseInt(document.querySelector('.chip.active')?.dataset.value);
             if (!chip || balance < chip) return;
@@ -351,7 +355,7 @@
             const data = await fetchData();
             data.users[userId] = { ...data.users[userId], balance, bets, totalBet, lastActive: Date.now() };
             await updateData(data);
-            updateUI(); // ချက်ချင်း ပြသမယ်
+            updateUI();
         }
 
         document.querySelectorAll('.chip').forEach(chip => {
@@ -376,7 +380,7 @@
                 if (bets['19-36'] && result > 18) winnings += bets['19-36'] * 2;
             }
             balance += winnings;
-            data.users[userId].totalWinnings = (data.users[userId].totalWinnings || 0) + winnings; // အနိုင်ရှိငွေ သိမ်း
+            data.users[userId].totalWinnings = (data.users[userId].totalWinnings || 0) + winnings;
             bets = {};
             totalBet = 0;
             data.users[userId].balance = balance;
@@ -391,12 +395,12 @@
                 data.messages.push({ from: maskedPhone, text: `${maskedPhone} အနိုင်ရ ${winnings} MMK (Result: ${result})`, timestamp: Date.now(), winner: true });
             }
             await updateData(data);
-            document.getElementById('result').innerHTML = winnings ? `🎉 အနိုင်ရ: ${winnings} MMK (Result: ${result})` : `😢 အရှုံးပါ (Result: ${result})`;
+            document.getElementById('result').innerHTML = winnings ? `🎉 အနိုင်ရ: ${winnings} MMK` : `😢 အရှုံးပါ`;
             if (winnings > 0) {
                 const winAnim = document.getElementById('win-animation');
                 winAnim.innerHTML = `+${winnings} MMK`;
                 winAnim.style.display = 'block';
-                setTimeout(() => winAnim.style.display = 'none', 2000);
+                setTimeout(() => winAnim.style.display = 'none', 1500);
             }
         }
 
@@ -421,12 +425,11 @@
                 ctx.fill();
                 ctx.strokeStyle = '#ffd700';
                 ctx.stroke();
-
                 ctx.save();
                 ctx.rotate(angle + (360 / 37 / 2) * Math.PI / 180);
                 ctx.fillStyle = '#fff';
-                ctx.font = '12px Arial';
-                ctx.fillText(num, radius - 20, 5);
+                ctx.font = '10px Arial';
+                ctx.fillText(num, radius - 15, 3);
                 ctx.restore();
             });
 
@@ -434,7 +437,7 @@
                 const targetAngle = (result * 360 / 37);
                 wheelAngle = targetAngle;
                 const ball = document.getElementById('ball');
-                ball.style.transform = `translate(-50%, -50%) rotate(${targetAngle}deg) translateX(${radius - 20}px) rotate(-${targetAngle}deg)`;
+                ball.style.transform = `translate(-50%, -50%) rotate(${targetAngle}deg) translateX(${radius - 15}px) rotate(-${targetAngle}deg)`;
             }
 
             ctx.restore();
@@ -445,14 +448,14 @@
             drawWheel(result);
             const ball = document.getElementById('ball');
             const radius = document.getElementById('wheel').width / 2;
-            ball.style.transform = `translate(-50%, -50%) rotate(${wheelAngle}deg) translateX(${radius - 20}px) rotate(-${wheelAngle}deg)`;
+            ball.style.transform = `translate(-50%, -50%) rotate(${wheelAngle}deg) translateX(${radius - 15}px) rotate(-${wheelAngle}deg)`;
             if (gameState === 'spinning') requestAnimationFrame(() => spinWheel(result));
         }
 
         function updateHistory(history) {
             const historyDiv = document.getElementById('history');
             historyDiv.innerHTML = '';
-            history.slice(0, 5).forEach((item, index) => {
+            history.slice(0, 5).forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'history-item';
                 div.style.backgroundColor = item.color;
@@ -472,7 +475,7 @@
             messages.slice(-10).forEach(msg => {
                 const div = document.createElement('div');
                 div.className = `chat-message ${msg.winner ? 'winner' : ''}`;
-                div.innerHTML = `${msg.from}: ${msg.text} <br><small>${new Date(msg.timestamp).toLocaleString()}</small>`;
+                div.innerHTML = `${msg.from}: ${msg.text}`;
                 chatLog.appendChild(div);
             });
             chatLog.scrollTop = chatLog.scrollHeight;
@@ -507,16 +510,12 @@
             });
         }
 
-        function showDepositModal() { if (navigator.onLine) document.getElementById('depositModal').style.display = 'flex'; else alert('အင်တာနက် လိုအပ်ပါသည်။'); }
-        function showWithdrawModal() { if (navigator.onLine) document.getElementById('withdrawModal').style.display = 'flex'; else alert('အင်တာနက် လိုအပ်ပါသည်။'); }
+        function showDepositModal() { document.getElementById('depositModal').style.display = 'flex'; }
+        function showWithdrawModal() { document.getElementById('withdrawModal').style.display = 'flex'; }
         function showSupportModal() { document.getElementById('supportModal').style.display = 'flex'; updateSupportChatLog(); }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
         async function submitDeposit() {
-            if (!navigator.onLine) {
-                alert('အင်တာနက် မရှိပါ။ ခဏစောင့်ပါ။');
-                return;
-            }
             const amount = parseInt(document.getElementById('deposit-amount').value);
             const transactionId = document.getElementById('transaction-id').value;
             if (amount < 100 || transactionId.length !== 6) return;
@@ -538,10 +537,6 @@
         }
 
         async function submitWithdraw() {
-            if (!navigator.onLine) {
-                alert('အင်တာနက် မရှိပါ။ ခဏစောင့်ပါ။');
-                return;
-            }
             const amount = parseInt(document.getElementById('withdraw-amount').value);
             const withdrawPhone = document.getElementById('withdraw-phone').value;
             if (amount < 100 || amount > balance || !withdrawPhone) return;
@@ -576,7 +571,7 @@
                 userMessages.forEach(msg => {
                     const div = document.createElement('div');
                     div.className = `chat-message ${msg.from === 'admin' ? 'admin' : ''}`;
-                    div.innerHTML = `${msg.text} <br><small>${new Date(msg.timestamp).toLocaleString()}</small>`;
+                    div.innerHTML = `${msg.text}`;
                     chatLog.appendChild(div);
                 });
                 chatLog.scrollTop = chatLog.scrollHeight;
