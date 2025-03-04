@@ -20,13 +20,20 @@
         button:hover { transform: scale(1.05); }
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: none; justify-content: center; align-items: center; }
         .modal-content { background: #1e1e1e; padding: 25px; border-radius: 15px; color: #ffd700; width: 90%; max-width: 400px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
-        .support-section { margin-top: 20px; background: #333; padding: 15px; border-radius: 10px; }
-        textarea, input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; }
+        .chat-section { margin-top: 20px; background: #333; padding: 15px; border-radius: 10px; }
+        .chat-log { max-height: 200px; overflow-y: auto; margin-top: 10px; background: #444; padding: 10px; border-radius: 5px; }
+        .chat-message { padding: 5px; margin: 5px 0; border-radius: 5px; text-align: left; }
+        .chat-message.winner { background: #555; color: #00ff00; text-align: right; }
+        textarea { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; }
+        input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; background: #222; color: #ffd700; border: 1px solid #ffd700; }
         #countdown { font-size: 2em; color: #ff4500; text-shadow: 0 0 10px #ff4500; animation: pulse 1s infinite; }
         #history { display: flex; justify-content: center; margin: 10px 0; }
         .history-item { width: 30px; height: 30px; border-radius: 50%; margin: 0 5px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
         #ball { position: absolute; width: 15px; height: 15px; background: #fff; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); }
         #win-animation { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2em; color: #00ff00; text-shadow: 0 0 10px #00ff00; animation: winPulse 1s infinite; display: none; }
+        .leaderboard { margin-top: 20px; background: #333; padding: 15px; border-radius: 10px; }
+        .leaderboard h3 { margin: 0; }
+        .leaderboard-item { display: flex; justify-content: space-between; padding: 5px; background: #444; margin: 5px 0; border-radius: 5px; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes spinBall { 0% { transform: translate(-50%, -50%) rotate(0deg) translateX(100px) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg) translateX(100px) rotate(-360deg); } }
         @keyframes winPulse { 0% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.2); } 100% { transform: translate(-50%, -50%) scale(1); } }
@@ -59,6 +66,16 @@
         </div>
         <div id="result">ကစားရန် အကောင့်ဝင်ပါ!</div>
         <div id="win-animation"></div>
+        <div class="chat-section">
+            <h3>💬 Chat</h3>
+            <div class="chat-log" id="game-chat-log"></div>
+            <textarea id="chat-input" placeholder="စာရိုက်ပါ..."></textarea>
+            <button onclick="sendChatMessage()">📩 ပို့မည်</button>
+        </div>
+        <div class="leaderboard">
+            <h3>🏆 နေ့စဉ် ထိပ်တန်း အနိုင်ရသူများ</h3>
+            <div id="leaderboard-list"></div>
+        </div>
     </div>
 
     <div class="modal" id="loginModal" style="display: flex;">
@@ -94,7 +111,7 @@
     <div class="modal" id="supportModal">
         <div class="modal-content">
             <h2>📞 Customer Support</h2>
-            <div class="chat-log" id="chat-log"></div>
+            <div class="chat-log" id="support-chat-log"></div>
             <textarea id="support-input" placeholder="သင့်မေးခွန်းကို ရေးပါ..."></textarea>
             <button onclick="sendSupportMessage()">📩 ပို့မည်</button>
             <button onclick="closeModal('supportModal')">❌ ပိတ်မည်</button>
@@ -105,7 +122,7 @@
         const BASE_URL = 'https://casino-opper.netlify.app';
         const DATA_API = `${BASE_URL}/.netlify/functions/data`;
         let userId, phone, balance = 0, bets = {}, timeLeft = 30, gameState = 'betting', wheelAngle = 0, totalBet = 0;
-        let offlineQueue = []; // အော့ဖ်လိုင်း သိမ်းဖို့
+        let offlineQueue = [];
 
         async function fetchData(retries = 5) {
             if (!navigator.onLine) {
@@ -193,7 +210,7 @@
                 return;
             }
             const users = data.users || {};
-            let userData = users[userId] || { balance: 0, bets: {}, phone, lastActive: Date.now(), warnings: 0, banUntil: 0, totalBet: 0, messages: [], transactions: [] };
+            let userData = users[userId] || { balance: 0, bets: {}, phone, lastActive: Date.now(), warnings: 0, banUntil: 0, totalBet: 0, totalWinnings: 0, messages: [], transactions: [] };
             balance = userData.balance;
             bets = userData.bets || {};
             totalBet = userData.totalBet || 0;
@@ -235,7 +252,8 @@
             bets = user.bets || {};
             totalBet = user.totalBet || 0;
             document.getElementById('balance-value').innerHTML = balance;
-            document.getElementById('total-bet-value').innerHTML = totalBet;
+            let totalGameBet = Object.values(data.users).reduce((sum, u) => sum + (u.totalBet || 0), 0);
+            document.getElementById('total-bet-value').innerHTML = totalGameBet;
             document.getElementById('timer').innerHTML = `Time Left: ${timeLeft}s`;
             document.getElementById('online-players').innerHTML = `Online Players: ${data.game.onlinePlayers || 0}`;
             if (gameState === 'betting') {
@@ -251,6 +269,8 @@
             }
             updateHistory(data.game.history || []);
             updateBetTable();
+            updateChatLog(data);
+            updateLeaderboard(data);
         }
 
         async function syncGameState() {
@@ -331,7 +351,7 @@
             const data = await fetchData();
             data.users[userId] = { ...data.users[userId], balance, bets, totalBet, lastActive: Date.now() };
             await updateData(data);
-            updateUI();
+            updateUI(); // ချက်ချင်း ပြသမယ်
         }
 
         document.querySelectorAll('.chip').forEach(chip => {
@@ -356,6 +376,7 @@
                 if (bets['19-36'] && result > 18) winnings += bets['19-36'] * 2;
             }
             balance += winnings;
+            data.users[userId].totalWinnings = (data.users[userId].totalWinnings || 0) + winnings; // အနိုင်ရှိငွေ သိမ်း
             bets = {};
             totalBet = 0;
             data.users[userId].balance = balance;
@@ -364,6 +385,11 @@
             data.game.history = data.game.history || [];
             data.game.history.unshift({ number: result, color: result === 0 ? '#00ff00' : (result % 2 === 0 ? '#ff0000' : '#000000') });
             if (data.game.history.length > 5) data.game.history.pop();
+            if (winnings > 0) {
+                const maskedPhone = maskPhoneNumber(phone);
+                data.messages = data.messages || [];
+                data.messages.push({ from: maskedPhone, text: `${maskedPhone} အနိုင်ရ ${winnings} MMK (Result: ${result})`, timestamp: Date.now(), winner: true });
+            }
             await updateData(data);
             document.getElementById('result').innerHTML = winnings ? `🎉 အနိုင်ရ: ${winnings} MMK (Result: ${result})` : `😢 အရှုံးပါ (Result: ${result})`;
             if (winnings > 0) {
@@ -435,9 +461,55 @@
             });
         }
 
+        function maskPhoneNumber(phone) {
+            return phone.slice(0, -3).replace(/[0-9]/g, '*') + phone.slice(-3);
+        }
+
+        function updateChatLog(data) {
+            const chatLog = document.getElementById('game-chat-log');
+            chatLog.innerHTML = '';
+            const messages = data.messages || [];
+            messages.slice(-10).forEach(msg => {
+                const div = document.createElement('div');
+                div.className = `chat-message ${msg.winner ? 'winner' : ''}`;
+                div.innerHTML = `${msg.from}: ${msg.text} <br><small>${new Date(msg.timestamp).toLocaleString()}</small>`;
+                chatLog.appendChild(div);
+            });
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+
+        async function sendChatMessage() {
+            const message = document.getElementById('chat-input').value;
+            if (!message || !userId) return;
+            const data = await fetchData();
+            data.messages = data.messages || [];
+            const maskedPhone = maskPhoneNumber(phone);
+            data.messages.push({ from: maskedPhone, text: message, timestamp: Date.now(), winner: false });
+            await updateData(data);
+            document.getElementById('chat-input').value = '';
+            updateUI();
+        }
+
+        function updateLeaderboard(data) {
+            const users = Object.entries(data.users || {}).map(([id, user]) => ({
+                id,
+                phone: maskPhoneNumber(user.phone),
+                totalWinnings: user.totalWinnings || 0
+            }));
+            users.sort((a, b) => b.totalWinnings - a.totalWinnings);
+            const leaderboardList = document.getElementById('leaderboard-list');
+            leaderboardList.innerHTML = '';
+            users.slice(0, 3).forEach((user, index) => {
+                const div = document.createElement('div');
+                div.className = 'leaderboard-item';
+                div.innerHTML = `No.${index + 1} - ${user.phone}: ${user.totalWinnings} MMK`;
+                leaderboardList.appendChild(div);
+            });
+        }
+
         function showDepositModal() { if (navigator.onLine) document.getElementById('depositModal').style.display = 'flex'; else alert('အင်တာနက် လိုအပ်ပါသည်။'); }
         function showWithdrawModal() { if (navigator.onLine) document.getElementById('withdrawModal').style.display = 'flex'; else alert('အင်တာနက် လိုအပ်ပါသည်။'); }
-        function showSupportModal() { document.getElementById('supportModal').style.display = 'flex'; updateChatLog(); }
+        function showSupportModal() { document.getElementById('supportModal').style.display = 'flex'; updateSupportChatLog(); }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
         async function submitDeposit() {
@@ -493,13 +565,13 @@
             data.users[userId].messages.push({ from: 'user', text: message, timestamp: Date.now() });
             await updateData(data);
             document.getElementById('support-input').value = '';
-            updateChatLog();
+            updateSupportChatLog();
         }
 
-        function updateChatLog() {
+        function updateSupportChatLog() {
             fetchData().then(data => {
                 const userMessages = data.users[userId]?.messages || [];
-                const chatLog = document.getElementById('chat-log');
+                const chatLog = document.getElementById('support-chat-log');
                 chatLog.innerHTML = '';
                 userMessages.forEach(msg => {
                     const div = document.createElement('div');
