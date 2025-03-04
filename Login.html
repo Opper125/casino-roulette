@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <style>
+        body { 
+            font-family: 'Poppins', sans-serif; 
+            background: linear-gradient(135deg, #1a1a1a, #2c003e); 
+            color: #ffd700; 
+            margin: 0; 
+            padding: 20px; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+        }
+        .login-container { 
+            background: rgba(30, 30, 30, 0.95); 
+            padding: 30px; 
+            border-radius: 15px; 
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.6); 
+            text-align: center; 
+            animation: slideIn 0.5s ease-in-out; 
+        }
+        h2 { 
+            text-shadow: 0 0 15px #ffd700; 
+            font-size: 2em; 
+            margin-bottom: 20px; 
+        }
+        input { 
+            width: 100%; 
+            padding: 10px; 
+            margin: 10px 0; 
+            background: #222; 
+            color: #ffd700; 
+            border: 1px solid #ffd700; 
+            border-radius: 8px; 
+            font-size: 1em; 
+        }
+        button { 
+            padding: 10px 20px; 
+            background: linear-gradient(45deg, #ffd700, #b8860b); 
+            color: #000; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            transition: transform 0.2s; 
+        }
+        button:hover { transform: scale(1.05); }
+        @keyframes slideIn { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h2>🎮 အကောင့်ဝင်ရန်</h2>
+        <input type="text" id="phone" placeholder="ဖုန်းနံပတ် (09xxxxxxxxx)">
+        <input type="password" id="pin" placeholder="PIN (6 လုံး)">
+        <button onclick="login()">ဝင်မည်</button>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const BASE_URL = 'https://casino-opper.netlify.app';
+
+        async function fetchData() {
+            const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
+            const data = await response.json();
+            localStorage.setItem('offlineData', JSON.stringify(data));
+            return data;
+        }
+
+        async function updateData(updates) {
+            if (navigator.onLine) {
+                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+                const data = await response.json();
+                localStorage.setItem('offlineData', JSON.stringify(data));
+                return data;
+            } else {
+                let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
+                localData = { ...localData, ...updates };
+                localStorage.setItem('offlineData', JSON.stringify(localData));
+                return localData;
+            }
+        }
+
+        async function login() {
+            const phone = document.getElementById('phone').value;
+            const pin = document.getElementById('pin').value;
+            if (!phone.match(/^09\d{8,9}$/) || pin.length !== 6) {
+                document.getElementById('result').innerHTML = "❌ ဖုန်း သို့မဟုတ် PIN မမှန်ပါ!";
+                return;
+            }
+            const userId = btoa(phone + pin);
+            const data = await fetchData();
+            const users = data.users || {};
+            let userData = users[userId] || { 
+                balance: 0, 
+                bets: {}, 
+                phone, 
+                pin, 
+                lastActive: Date.now(), 
+                warnings: 0, 
+                banUntil: 0, 
+                totalBet: 0, 
+                totalWinnings: 0, 
+                messages: [], 
+                transactions: [] 
+            };
+            users[userId] = userData;
+            await updateData({ users });
+            localStorage.setItem('loggedInUser', userId);
+            localStorage.setItem('phone', phone);
+            localStorage.setItem('pin', pin);
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>
