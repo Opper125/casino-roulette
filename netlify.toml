@@ -10,4 +10,4 @@
   to = "/index.html"
   status = 200
 [context.production.environment]
-  NODE_VERSION = "16"  # Updated to a more recent version
+  NODE_VERSION = "18"  # Updated to latest stable version
