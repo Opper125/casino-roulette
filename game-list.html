@@ -6,8 +6,8 @@
     <title>ဂိမ်းမှတ်တမ်း</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #1e1e1e, #4a00e0);
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1a1a1a, #2e0047);
             color: #fff;
             margin: 0;
             padding: 0;
@@ -16,14 +16,14 @@
             max-width: 600px;
             margin: 20px auto;
             padding: 20px;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             border-radius: 15px;
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
             text-align: center;
         }
         h1 {
-            color: #00ffcc;
-            text-shadow: 0 0 10px #00ffcc;
+            color: #ffd700;
+            text-shadow: 0 0 15px #ffd700;
         }
         ul {
             list-style: none;
@@ -32,14 +32,19 @@
         li {
             background: #333;
             margin: 10px 0;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 15px;
+            border-radius: 8px;
+            color: #00ffcc;
         }
         a {
-            color: #00ffcc;
+            color: #ffd700;
             text-decoration: none;
             margin: 10px 0;
             display: block;
+            transition: color 0.3s;
+        }
+        a:hover {
+            color: #ff4500;
         }
     </style>
 </head>
@@ -47,7 +52,7 @@
     <div class="container">
         <h1>ဂိမ်းမှတ်တမ်း</h1>
         <ul id="gameHistory"></ul>
-        <a href="index.html">ဂိမ်းသို့ ပြန်သွားမယ်</a>
+        <a href="/index.html">ဂိမ်းသို့ ပြန်သွားမယ်</a>
     </div>
 
     <script>
