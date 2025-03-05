@@ -3,437 +3,220 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Casino Home</title>
+    <title>အွန်လိုင်း ကာစီနို ရိုးလက် ဂိမ်း</title>
     <style>
-        body { 
-            font-family: 'Poppins', sans-serif; 
-            background: linear-gradient(135deg, #1a1a1a, #2c003e); 
-            color: #ffd700; 
-            margin: 0; 
-            padding: 20px; 
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1e1e1e, #4a00e0);
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
         }
-        .container { 
-            max-width: 1200px; 
-            margin: auto; 
-            padding: 20px; 
-            background: rgba(30, 30, 30, 0.95); 
-            border-radius: 15px; 
-            box-shadow: 0 0 30px rgba(255, 215, 0, 0.6); 
-            text-align: center; 
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            text-align: center;
         }
-        h1 { 
-            text-shadow: 0 0 15px #ffd700; 
-            font-size: 2.5em; 
-            margin: 0; 
+        h1 {
+            color: #00ffcc;
+            text-shadow: 0 0 10px #00ffcc;
+            animation: glow 2s infinite;
         }
-        .profile-bar { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            padding: 15px; 
-            background: #333; 
-            border-radius: 10px; 
-            margin-bottom: 20px; 
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px #00ffcc; }
+            50% { text-shadow: 0 0 20px #00ffcc; }
+            100% { text-shadow: 0 0 5px #00ffcc; }
         }
-        .profile-info { font-size: 1.2em; }
-        .game-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-            gap: 20px; 
-            margin-top: 20px; 
+        #roulette {
+            font-size: 2em;
+            color: #ffd700;
+            margin: 20px 0;
+            animation: spinResult 1s ease-out;
         }
-        .game-card { 
-            padding: 20px; 
-            background: linear-gradient(45deg, #444, #666); 
-            border-radius: 10px; 
-            text-align: center; 
+        @keyframes spinResult {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
         }
-        .game-card img { 
-            width: 100%; 
-            border-radius: 8px; 
-            margin-bottom: 10px; 
+        .bet-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
         }
-        input { 
-            width: 100%; 
-            padding: 10px; 
-            margin: 10px 0; 
-            background: #222; 
-            color: #ffd700; 
-            border: 1px solid #ffd700; 
-            border-radius: 8px; 
-            font-size: 1em; 
+        input, button {
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
         }
-        button { 
-            padding: 10px 20px; 
-            background: linear-gradient(45deg, #ffd700, #b8860b); 
-            color: #000; 
-            border: none; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            font-weight: bold; 
-            margin: 5px; 
+        input {
+            background: #333;
+            color: #fff;
+            width: 100px;
         }
-        #login-result, #game-result { margin-top: 10px; }
-        #roulette-wheel { margin: 20px auto; }
-        .bet-table { 
-            display: grid; 
-            grid-template-columns: repeat(6, 1fr); 
-            gap: 5px; 
-            margin: 15px 0; 
+        button {
+            background: #ff4500;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s;
         }
-        .bet-area { 
-            padding: 10px; 
-            background: #444; 
-            border: 2px solid #ffd700; 
-            border-radius: 8px; 
-            cursor: pointer; 
+        button:hover {
+            transform: scale(1.1);
+            background: #ff6347;
         }
-        .bet-area:hover { background: #666; }
-        .chip { 
-            width: 40px; 
-            height: 40px; 
-            border-radius: 50%; 
-            background: linear-gradient(45deg, #ffd700, #b8860b); 
-            display: inline-flex; 
-            align-items: center; 
-            justify-content: center; 
-            cursor: pointer; 
-            margin: 5px; 
+        #timer {
+            font-size: 1.5em;
+            color: #00ff00;
+            margin: 10px 0;
+            animation: pulse 1s infinite;
         }
-        .chip.active { border: 3px solid #fff; }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        #bonus {
+            font-size: 1.2em;
+            color: #ff00ff;
+            margin: 10px 0;
+        }
+        #result {
+            color: #ffd700;
+            font-size: 1.2em;
+        }
+        a {
+            color: #00ffcc;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        .slots {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .slot {
+            width: 60px;
+            height: 60px;
+            background: #fff;
+            color: #000;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            animation: slotSpin 0.5s ease-in-out;
+        }
+        @keyframes slotSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎰 Casino Hub</h1>
-        <div class="profile-bar" id="profile-bar" style="display: none;">
-            <div class="profile-info">
-                Phone: <span id="user-phone">Not Logged In</span> | 
-                Balance: <span id="user-balance">0</span> MMK
-            </div>
-            <div>
-                <button onclick="showWithdrawModal()">🏦 Withdraw</button>
-                <button onclick="logout()">🚪 Logout</button>
-            </div>
+        <h1>ရိုးလက် ဂိမ်း</h1>
+        <div id="roulette">ဂိမ်းစတင်ရန် စောင့်ပါ...</div>
+        <div class="slots" id="bonusSlots"></div>
+        <div id="bonus"></div>
+        <div id="timer">အချိန်: 30 စက္ကန့်</div>
+        <div class="bet-container">
+            <input type="number" id="betAmount" placeholder="လောင်းကြေး">
+            <input type="number" id="betNumber" placeholder="ဂဏန်း (0-36)">
+            <button onclick="placeBet()">လောင်းမယ်</button>
         </div>
-        <div id="login-section">
-            <h2>🎮 အကောင့်ဝင်ရန်</h2>
-            <input type="text" id="phone" placeholder="ဖုန်းနံပတ် (09xxxxxxxxx)">
-            <input type="password" id="pin" placeholder="PIN (6 လုံး)">
-            <button onclick="login()">ဝင်မည်</button>
-            <div id="login-result"></div>
-        </div>
-        <div id="game-section" style="display: none;">
-            <div id="status">Game Status: <span id="game-status">Waiting for Admin...</span></div>
-            <div class="game-grid">
-                <div class="game-card">
-                    <img src="https://via.placeholder.com/200x150?text=Roulette" alt="Roulette">
-                    <h3>Roulette</h3>
-                    <div id="roulette-wheel"><canvas id="wheel" width="200" height="200"></canvas></div>
-                    <div class="bet-table" id="betTable"></div>
-                    <div class="bet-chips">
-                        <div class="chip" data-value="1000" onclick="selectChip(1000)">1K</div>
-                        <div class="chip" data-value="10000" onclick="selectChip(10000)">10K</div>
-                        <div class="chip" data-value="100000" onclick="selectChip(100000)">100K</div>
-                    </div>
-                    <button onclick="spinRoulette()">Spin</button>
-                    <div id="roulette-result"></div>
-                </div>
-                <div class="game-card">
-                    <img src="https://via.placeholder.com/200x150?text=Slots" alt="Slots">
-                    <h3>Slots</h3>
-                    <button onclick="spinSlots()">Spin (100 MMK)</button>
-                    <div id="slots-result">ကစားရန် Spin နှိပ်ပါ!</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal" id="withdrawModal" style="display: none;">
-        <div class="modal-content" style="background: #1e1e1e; padding: 20px; border-radius: 10px; color: #ffd700;">
-            <h2>🏦 Withdraw</h2>
-            <input type="text" id="withdraw-phone" placeholder="Kpay/Wave ဖုန်းနံပတ်">
-            <input type="number" id="withdraw-amount" placeholder="ငွေပမာဏ (MMK)">
-            <button onclick="submitWithdraw()">တောင်းဆိုမည်</button>
-            <button onclick="closeModal('withdrawModal')">❌ ပိတ်မည်</button>
-        </div>
+        <div id="result"></div>
+        <p>လက်ကျန်ငွေ: <span id="balance">0</span> ကျပ်</p>
+        <a href="user-info.html">အကောင့်သို့သွားမယ်</a> | <a href="game-list.html">ဂိမ်းမှတ်တမ်း</a>
     </div>
 
     <script>
-        const BASE_URL = 'https://casino-opper.netlify.app'; // Your Netlify URL
-        let userId, balance = 0, bets = {}, selectedChip = null;
+        let balance = parseInt(localStorage.getItem('balance')) || 0;
+        let gameHistory = JSON.parse(localStorage.getItem('gameHistory')) || [];
+        let currentBet = null;
+        let timeLeft = 30;
 
-        async function fetchData() {
-            try {
-                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
-                if (!response.ok) throw new Error('Server ချိတ်ဆက်မှု မအောင်မြင်ပါ');
-                const data = await response.json();
-                localStorage.setItem('offlineData', JSON.stringify(data));
-                return data;
-            } catch (e) {
-                console.error('Fetch failed:', e);
-                return JSON.parse(localStorage.getItem('offlineData') || '{}');
-            }
-        }
+        document.getElementById('balance').innerText = balance;
 
-        async function updateData(updates) {
-            try {
-                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updates)
-                });
-                if (!response.ok) throw new Error('Server သို့ ဒေတာပို့မှု မအောင်မြင်ပါ');
-                const data = await response.json();
-                localStorage.setItem('offlineData', JSON.stringify(data));
-                return data;
-            } catch (e) {
-                console.error('Update failed:', e);
-                let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
-                localData = { ...localData, ...updates };
-                localStorage.setItem('offlineData', JSON.stringify(localData));
-                return localData;
-            }
-        }
-
-        function maskPhoneNumber(phone) {
-            return phone.slice(0, -3).replace(/[0-9]/g, '*') + phone.slice(-3);
-        }
-
-        async function login() {
-            const phone = document.getElementById('phone').value;
-            const pin = document.getElementById('pin').value;
-            const resultDiv = document.getElementById('login-result');
-            if (!phone.match(/^09\d{8,9}$/) || pin.length !== 6) {
-                resultDiv.innerHTML = "❌ ဖုန်း သို့မဟုတ် PIN မမှန်ပါ!";
-                return;
-            }
-            resultDiv.innerHTML = "⏳ ချိတ်ဆက်နေပါသည်...";
-            userId = btoa(phone + pin);
-            try {
-                const data = await fetchData();
-                let users = data.users || {};
-                if (!users[userId]) {
-                    users[userId] = { 
-                        phone, 
-                        pin, 
-                        balance: 0, 
-                        totalWinnings: 0, 
-                        transactions: [], 
-                        createdAt: Date.now(), 
-                        lastActive: Date.now(), 
-                        warnings: 0, 
-                        banUntil: 0 
-                    };
-                    resultDiv.innerHTML = "✅ အကောင့်အသစ်ဖွင့်ပြီး!";
-                } else if (users[userId].pin === pin) {
-                    resultDiv.innerHTML = "✅ အကောင့်ဝင်ပြီး!";
-                } else {
-                    resultDiv.innerHTML = "❌ PIN မမှန်ပါ!";
-                    return;
+        function spinRoulette() {
+            timeLeft = 30;
+            document.getElementById('timer').innerText = `အချိန်: ${timeLeft} စက္ကန့်`;
+            document.getElementById('result').innerText = 'လောင်းကြေး ပိတ်ပါပြီ။ စောင့်ပါ...';
+            showBonusSlots();
+            const countdown = setInterval(() => {
+                timeLeft--;
+                document.getElementById('timer').innerText = `အချိန်: ${timeLeft} စက္ကန့်`;
+                if (timeLeft <= 0) {
+                    clearInterval(countdown);
+                    const result = Math.floor(Math.random() * 37);
+                    document.getElementById('roulette').innerText = `ရလဒ်: ${result}`;
+                    checkBet(result);
+                    saveGameResult(result);
+                    setTimeout(spinRoulette, 2000);
                 }
-                users[userId].lastActive = Date.now();
-                await updateData({ users });
-                localStorage.setItem('loggedInUser', userId);
-                localStorage.setItem('phone', phone);
-                document.getElementById('login-section').style.display = 'none';
-                document.getElementById('profile-bar').style.display = 'flex';
-                document.getElementById('game-section').style.display = 'block';
-                setupBetTable();
-                updateUI();
-            } catch (e) {
-                resultDiv.innerHTML = `❌ ချိတ်ဆက်မှု မအောင်မြင်ပါ: ${e.message}`;
-            }
+            }, 1000);
         }
 
-        async function updateUI() {
-            const data = await fetchData();
-            userId = localStorage.getItem('loggedInUser');
-            if (!userId || !data.users || !data.users[userId]) {
-                document.getElementById('login-section').style.display = 'block';
-                document.getElementById('profile-bar').style.display = 'none';
-                document.getElementById('game-section').style.display = 'none';
+        function showBonusSlots() {
+            const slots = document.getElementById('bonusSlots');
+            slots.innerHTML = '';
+            const bonusValues = [1, 10, 500];
+            for (let i = 0; i < 3; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                slot.innerText = bonusValues[Math.floor(Math.random() * 3)] + 'x';
+                slots.appendChild(slot);
+            }
+            const bonus = Math.max(...Array.from(slots.children).map(s => parseInt(s.innerText)));
+            document.getElementById('bonus').innerText = `ဘောနပ်စ်: ${bonus}x`;
+        }
+
+        function placeBet() {
+            const betAmount = parseInt(document.getElementById('betAmount').value);
+            const betNumber = parseInt(document.getElementById('betNumber').value);
+            if (timeLeft <= 0) {
+                alert('လောင်းကြေး ပိတ်ပါပြီ။ နောက်ပွဲကို စောင့်ပါ။');
                 return;
             }
-            const user = data.users[userId];
-            balance = user.balance || 0;
-            document.getElementById('user-phone').innerHTML = maskPhoneNumber(user.phone);
-            document.getElementById('user-balance').innerHTML = balance;
-            document.getElementById('game-status').innerHTML = data.game && data.game.adminStarted ? 'Active' : 'Waiting for Admin...';
-            user.lastActive = Date.now();
-            await updateData({ users: data.users });
-            setTimeout(updateUI, 1000); // Poll every second
-        }
-
-        function logout() {
-            localStorage.removeItem('loggedInUser');
-            localStorage.removeItem('phone');
-            document.getElementById('login-section').style.display = 'block';
-            document.getElementById('profile-bar').style.display = 'none';
-            document.getElementById('game-section').style.display = 'none';
-        }
-
-        function showWithdrawModal() {
-            document.getElementById('withdrawModal').style.display = 'flex';
-        }
-
-        function closeModal(id) {
-            document.getElementById(id).style.display = 'none';
-        }
-
-        async function submitWithdraw() {
-            const amount = parseInt(document.getElementById('withdraw-amount').value);
-            const withdrawPhone = document.getElementById('withdraw-phone').value;
-            const data = await fetchData();
-            if (!data.users[userId] || amount < 100 || amount > data.users[userId].balance || !withdrawPhone) {
-                alert('မမှန်ကန်သော တောင်းဆိုမှု!');
+            if (betAmount > balance || betAmount <= 0 || betNumber < 0 || betNumber > 36) {
+                alert('လောင်းကြေး သို့မဟုတ် ဂဏန်း မမှန်ပါ။');
                 return;
             }
-            data.users[userId].balance -= amount;
-            const requestId = `${userId}_${Date.now()}`;
-            data.requests = data.requests || {};
-            data.requests[requestId] = { userId, phone: data.users[userId].phone, amount, withdrawPhone, type: 'withdraw', status: 'pending', timestamp: Date.now() };
-            data.users[userId].transactions.push({ type: 'withdraw', amount, status: 'pending', timestamp: Date.now() });
-            await updateData({ users: data.users, requests: data.requests });
-            closeModal('withdrawModal');
-            updateUI();
+            currentBet = { amount: betAmount, number: betNumber };
+            balance -= betAmount;
+            updateBalance();
+            document.getElementById('result').innerText = 'လောင်းကြေး ထည့်ပြီးပါပြီ။';
         }
 
-        // Roulette Game Logic
-        function setupBetTable() {
-            const table = [...Array.from({ length: 37 }, (_, i) => i)];
-            table.forEach(id => {
-                const div = document.createElement('div');
-                div.className = 'bet-area';
-                div.id = `bet-${id}`;
-                div.innerHTML = id;
-                div.onclick = () => placeBet(id);
-                document.getElementById('betTable').appendChild(div);
-            });
-        }
-
-        function selectChip(value) {
-            selectedChip = value;
-            document.querySelectorAll('.chip').forEach(chip => {
-                chip.classList.remove('active');
-                if (parseInt(chip.dataset.value) === value) chip.classList.add('active');
-            });
-        }
-
-        async function placeBet(id) {
-            if (!selectedChip || balance < selectedChip) return;
-            const data = await fetchData();
-            if (!data.game || !data.game.adminStarted) {
-                document.getElementById('roulette-result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
-                return;
+        function checkBet(result) {
+            if (currentBet && currentBet.number === result) {
+                const bonus = parseInt(document.getElementById('bonus').innerText.split(': ')[1]) || 1;
+                const payout = currentBet.amount * 35 * bonus;
+                balance += payout;
+                document.getElementById('result').innerText = `အနိုင်ရပါပြီ! ${payout} ကျပ် ရရှိမယ်`;
+            } else {
+                document.getElementById('result').innerText = 'အရှုံးပါ။ ထပ်ကြိုးစားပါ။';
             }
-            const user = data.users[userId];
-            if (!user || user.balance < selectedChip) return;
-            user.balance -= selectedChip;
-            bets[id] = (bets[id] || 0) + selectedChip;
-            user.bets = bets;
-            balance = user.balance;
-            data.users[userId] = user;
-            data.users[userId].transactions.push({ type: 'bet', game: 'roulette', amount: selectedChip, timestamp: Date.now() });
-            await updateData({ users: data.users });
-            updateBetTable();
+            currentBet = null;
+            updateBalance();
         }
 
-        function updateBetTable() {
-            const table = document.getElementById('betTable').children;
-            Array.from(table).forEach(area => {
-                const id = area.id.replace('bet-', '');
-                const amount = bets[id] || 0;
-                area.innerHTML = `${id}${amount > 0 ? ` (${amount})` : ''}`;
-            });
+        function updateBalance() {
+            localStorage.setItem('balance', balance);
+            document.getElementById('balance').innerText = balance;
         }
 
-        async function spinRoulette() {
-            const data = await fetchData();
-            if (!data.game || !data.game.adminStarted) {
-                document.getElementById('roulette-result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
-                return;
-            }
-            const user = data.users[userId];
-            if (!user || Object.keys(bets).length === 0) {
-                document.getElementById('roulette-result').innerHTML = "🎲 Bet တင်ပါ!";
-                return;
-            }
-            const result = Math.floor(Math.random() * 37);
-            drawWheel(result);
-            let winnings = 0;
-            if (bets[result]) winnings = bets[result] * 36;
-            user.balance += winnings;
-            user.totalWinnings = (user.totalWinnings || 0) + winnings;
-            user.transactions.push({ type: 'win', game: 'roulette', amount: winnings, timestamp: Date.now() });
-            bets = {};
-            data.users[userId] = user;
-            await updateData({ users: data.users });
-            document.getElementById('roulette-result').innerHTML = winnings ? `🎉 အနိုင်ရ: ${winnings} MMK` : '😢 အရှုံးပါ';
-            updateUI();
+        function saveGameResult(result) {
+            gameHistory.push({ result, timestamp: new Date().toLocaleString() });
+            localStorage.setItem('gameHistory', JSON.stringify(gameHistory));
         }
 
-        function drawWheel(result) {
-            const canvas = document.getElementById('wheel');
-            const ctx = canvas.getContext('2d');
-            const radius = canvas.width / 2;
-            const numbers = Array.from({ length: 37 }, (_, i) => i);
-            const colors = numbers.map(num => num === 0 ? '#00ff00' : (num % 2 === 0 ? '#ff0000' : '#000000'));
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.save();
-            ctx.translate(radius, radius);
-
-            numbers.forEach((num, i) => {
-                const angle = (i * 360 / 37) * Math.PI / 180;
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.arc(0, 0, radius, angle, angle + (360 / 37) * Math.PI / 180);
-                ctx.fillStyle = colors[i];
-                ctx.fill();
-                ctx.strokeStyle = '#ffd700';
-                ctx.stroke();
-                ctx.save();
-                ctx.rotate(angle + (360 / 37 / 2) * Math.PI / 180);
-                ctx.fillStyle = '#fff';
-                ctx.font = '10px Poppins';
-                ctx.fillText(num, radius - 20, 5);
-                ctx.restore();
-            });
-
-            if (result !== null) {
-                ctx.rotate((result * 360 / 37) * Math.PI / 180);
-            }
-            ctx.restore();
-        }
-
-        // Slots Game Logic
-        async function spinSlots() {
-            const data = await fetchData();
-            if (!data.game || !data.game.adminStarted) {
-                document.getElementById('slots-result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
-                return;
-            }
-            const user = data.users[userId];
-            const bet = 100;
-            if (!user || user.balance < bet) {
-                document.getElementById('slots-result').innerHTML = 'ငွေမလုံလောက်ပါ!';
-                return;
-            }
-            user.balance -= bet;
-            const result = Math.random() < 0.3 ? bet * 2 : 0; // 30% chance to win
-            user.balance += result;
-            user.totalWinnings = (user.totalWinnings || 0) + result;
-            user.transactions.push({ type: 'bet', game: 'slots', amount: bet, timestamp: Date.now() });
-            if (result > 0) user.transactions.push({ type: 'win', game: 'slots', amount: result, timestamp: Date.now() });
-            await updateData({ users: data.users });
-            document.getElementById('slots-result').innerHTML = result > 0 ? `အနိုင်ရ: ${result} MMK!` : 'အရှုံးပါ!';
-            updateUI();
-        }
-
-        window.onload = () => {
-            updateUI();
-        };
+        spinRoulette();
     </script>
 </body>
 </html>
