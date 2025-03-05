@@ -52,12 +52,12 @@
     <div class="container">
         <h1>ဂိမ်းမှတ်တမ်း</h1>
         <ul id="gameHistory"></ul>
-        <a href="/index.html">ဂိမ်းသို့ ပြန်သွားမယ်</a>
+        <a href="https://casinoopper.netlify.app">ဂိမ်းသို့ ပြန်သွားမယ်</a>
     </div>
 
     <script>
         let currentUser = JSON.parse(localStorage.getItem('currentUser'));
-        if (!currentUser) window.location.href = '/index.html';
+        if (!currentUser) window.location.href = 'https://casinoopper.netlify.app';
 
         const gameHistory = JSON.parse(localStorage.getItem(`gameHistory_${currentUser.phone}`)) || [];
         const historyList = document.getElementById('gameHistory');
