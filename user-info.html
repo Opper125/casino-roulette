@@ -81,12 +81,12 @@
         <button onclick="requestWithdraw()">ငွေထုတ်မယ်</button>
         <h3>မှတ်တမ်း</h3>
         <ul id="transactions"></ul>
-        <a href="/index.html">ဂိမ်းသို့ ပြန်သွားမယ်</a>
+        <a href="https://casinoopper.netlify.app">ဂိမ်းသို့ ပြန်သွားမယ်</a>
     </div>
 
     <script>
         let currentUser = JSON.parse(localStorage.getItem('currentUser'));
-        if (!currentUser) window.location.href = '/index.html';
+        if (!currentUser) window.location.href = 'https://casinoopper.netlify.app';
 
         document.getElementById('phone').innerText = currentUser.phone;
         let balance = parseInt(localStorage.getItem(`balance_${currentUser.phone}`)) || 0;
