@@ -76,22 +76,34 @@
         <input type="text" id="userPhone" placeholder="ဖုန်းနံပတ်">
         <input type="number" id="amount" placeholder="ငွေပမာဏ">
         <button onclick="deposit()">ငွေသွင်းမယ်</button>
+        <button onclick="withdraw()">ငွေထုတ်မယ်</button>
         <h3>ငွေထုတ်တောင်းဆိုမှုများ</h3>
         <ul id="transactionList"></ul>
-        <a href="/index.html">ဂိမ်းသို့ ပြန်သွားမယ်</a>
+        <a href="https://casinoopper.netlify.app">ဂိမ်းသို့ ပြန်သွားမယ်</a>
     </div>
 
     <script>
-        function toggleGame() {
+        let gameActive = false;
+
+        async function toggleGame() {
             gameActive = !gameActive;
-            localStorage.setItem('gameActive', gameActive);
             document.getElementById('gameToggle').innerText = gameActive ? 'ဂိမ်းပိတ်မယ်' : 'ဂိမ်းဖွင့်မယ်';
+            await fetch('https://casinoopper.netlify.app/.netlify/functions/game', {
+                method: 'POST',
+                body: JSON.stringify({ active: gameActive, timeLeft: 30 })
+            });
         }
 
-        function setCustomResult() {
+        async function setCustomResult() {
             const result = parseInt(document.getElementById('customResult').value);
-            if (result >= 0 && result <= 36) localStorage.setItem('adminResult', result);
-            else alert('နံပတ် 0-36 အတွင်း ထည့်ပါ။');
+            if (result >= 0 && result <= 36) {
+                await fetch('https://casinoopper.netlify.app/.netlify/functions/game', {
+                    method: 'POST',
+                    body: JSON.stringify({ active: gameActive, timeLeft, result })
+                });
+            } else {
+                alert('နံပတ် 0-36 အတွင်း ထည့်ပါ။');
+            }
         }
 
         function deposit() {
@@ -107,6 +119,22 @@
             transactions.push({ type: 'deposit', method: 'admin', amount, status: 'approved', timestamp: new Date().toLocaleString() });
             localStorage.setItem(`transactions_${phone}`, JSON.stringify(transactions));
             alert('ငွေသွင်းပြီးပါပြီ။');
+        }
+
+        function withdraw() {
+            const phone = document.getElementById('userPhone').value;
+            const amount = parseInt(document.getElementById('amount').value);
+            if (!phone || amount <= 0) return alert('ဖုန်းနံပတ် သို့မဟုတ် ငွေပမာဏ မမှန်ပါ။');
+            const storedPin = localStorage.getItem(`pin_${phone}`);
+            if (!storedPin) return alert('အကောင့်မရှိပါ။');
+            let balance = parseInt(localStorage.getItem(`balance_${phone}`)) || 0;
+            if (balance < amount) return alert('လက်ကျန်ငွေ မလုံလောက်ပါ။');
+            balance -= amount;
+            localStorage.setItem(`balance_${phone}`, balance);
+            let transactions = JSON.parse(localStorage.getItem(`transactions_${phone}`)) || [];
+            transactions.push({ type: 'withdraw', method: 'admin', amount, status: 'approved', timestamp: new Date().toLocaleString() });
+            localStorage.setItem(`transactions_${phone}`, JSON.stringify(transactions));
+            alert('ငွေထုတ်ပြီးပါပြီ။');
         }
 
         function loadTransactions() {
@@ -153,7 +181,7 @@
 
         loadTransactions();
         setInterval(loadTransactions, 1000); // Real-time Update
-        document.getElementById('gameToggle').innerText = localStorage.getItem('gameActive') === 'true' ? 'ဂိမ်းပိတ်မယ်' : 'ဂိမ်းဖွင့်မယ်';
+        document.getElementById('gameToggle').innerText = gameActive ? 'ဂိမ်းပိတ်မယ်' : 'ဂိမ်းဖွင့်မယ်';
     </script>
 </body>
 </html>
