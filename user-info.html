@@ -61,6 +61,8 @@
         <h1>အကောင့် အချက်အလက်</h1>
         <p>ဖုန်းနံပတ်: <span id="phone"></span></p>
         <p>လက်ကျန်ငွေ: <span id="balance">0</span> ကျပ်</p>
+        <p>Online အခြေအနေ: <span id="online-status">Offline</span></p>
+        <p>ကစားချိန်: <span id="play-time">0 စက္ကန့်</span></p>
         <h3>ငွေထုတ်တောင်းဆိုမှု</h3>
         <select id="withdrawMethod">
             <option value="kpay">KPay</option>
@@ -76,6 +78,8 @@
     <script>
         let currentUser = JSON.parse(localStorage.getItem('currentUser'));
         if (!currentUser) window.location.href = 'https://casinoopper.netlify.app';
+
+        let playTime = parseInt(localStorage.getItem(`playTime_${currentUser.phone}`)) || 0;
 
         document.getElementById('phone').innerText = currentUser.phone;
         let balance = parseInt(localStorage.getItem(`balance_${currentUser.phone}`)) || 0;
@@ -93,6 +97,20 @@
             loadTransactions();
         }
 
+        function loadUserInfo() {
+            const onlinePlayers = JSON.parse(localStorage.getItem('onlinePlayers') || '[]');
+            const isOnline = onlinePlayers.includes(currentUser.phone);
+            document.getElementById('online-status').innerText = isOnline ? 'Online' : 'Offline';
+            balance = parseInt(localStorage.getItem(`balance_${currentUser.phone}`)) || 0;
+            document.getElementById('balance').innerText = balance.toLocaleString();
+            if (isOnline) {
+                playTime++;
+                localStorage.setItem(`playTime_${currentUser.phone}`, playTime);
+            }
+            document.getElementById('play-time').innerText = `${playTime} စက္ကန့်`;
+            loadTransactions();
+        }
+
         function loadTransactions() {
             const transactions = JSON.parse(localStorage.getItem(`transactions_${currentUser.phone}`)) || [];
             const list = document.getElementById('transactions');
@@ -102,12 +120,10 @@
                 li.innerText = `${t.type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'} - ${t.method} - ${t.amount.toLocaleString()} ကျပ် - ${t.timestamp} - ${t.status}`;
                 list.appendChild(li);
             });
-            balance = parseInt(localStorage.getItem(`balance_${currentUser.phone}`)) || 0;
-            document.getElementById('balance').innerText = balance.toLocaleString();
         }
 
-        loadTransactions();
-        setInterval(loadTransactions, 1000); // Real-time Update
+        loadUserInfo();
+        setInterval(loadUserInfo, 1000); // Real-time Update
     </script>
 </body>
 </html>
