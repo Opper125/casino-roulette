@@ -11,7 +11,6 @@
             color: #ffd700; 
             margin: 0; 
             padding: 20px; 
-            overflow-x: hidden; 
         }
         .container { 
             max-width: 1200px; 
@@ -20,12 +19,12 @@
             background: rgba(30, 30, 30, 0.95); 
             border-radius: 15px; 
             box-shadow: 0 0 30px rgba(255, 215, 0, 0.6); 
+            text-align: center; 
         }
         h1 { 
             text-shadow: 0 0 15px #ffd700; 
             font-size: 2.5em; 
             margin: 0; 
-            text-align: center; 
         }
         .profile-bar { 
             display: flex; 
@@ -48,16 +47,21 @@
             background: linear-gradient(45deg, #444, #666); 
             border-radius: 10px; 
             text-align: center; 
-            cursor: pointer; 
-            transition: transform 0.3s; 
-        }
-        .game-card:hover { 
-            transform: scale(1.05); 
         }
         .game-card img { 
             width: 100%; 
             border-radius: 8px; 
             margin-bottom: 10px; 
+        }
+        input { 
+            width: 100%; 
+            padding: 10px; 
+            margin: 10px 0; 
+            background: #222; 
+            color: #ffd700; 
+            border: 1px solid #ffd700; 
+            border-radius: 8px; 
+            font-size: 1em; 
         }
         button { 
             padding: 10px 20px; 
@@ -67,13 +71,42 @@
             border-radius: 8px; 
             cursor: pointer; 
             font-weight: bold; 
+            margin: 5px; 
         }
+        #login-result, #game-result { margin-top: 10px; }
+        #roulette-wheel { margin: 20px auto; }
+        .bet-table { 
+            display: grid; 
+            grid-template-columns: repeat(6, 1fr); 
+            gap: 5px; 
+            margin: 15px 0; 
+        }
+        .bet-area { 
+            padding: 10px; 
+            background: #444; 
+            border: 2px solid #ffd700; 
+            border-radius: 8px; 
+            cursor: pointer; 
+        }
+        .bet-area:hover { background: #666; }
+        .chip { 
+            width: 40px; 
+            height: 40px; 
+            border-radius: 50%; 
+            background: linear-gradient(45deg, #ffd700, #b8860b); 
+            display: inline-flex; 
+            align-items: center; 
+            justify-content: center; 
+            cursor: pointer; 
+            margin: 5px; 
+        }
+        .chip.active { border: 3px solid #fff; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🎰 Casino Hub</h1>
-        <div class="profile-bar" id="profile-bar">
+        <div class="profile-bar" id="profile-bar" style="display: none;">
             <div class="profile-info">
                 Phone: <span id="user-phone">Not Logged In</span> | 
                 Balance: <span id="user-balance">0</span> MMK
@@ -83,15 +116,35 @@
                 <button onclick="logout()">🚪 Logout</button>
             </div>
         </div>
-        <div id="status">Game Status: <span id="game-status">Waiting for Admin...</span></div>
-        <div class="game-grid" id="game-grid">
-            <div class="game-card" onclick="enterGame('roulette.html')">
-                <img src="https://via.placeholder.com/200x150?text=Roulette" alt="Roulette">
-                <h3>Roulette</h3>
-            </div>
-            <div class="game-card" onclick="enterGame('slots.html')">
-                <img src="https://via.placeholder.com/200x150?text=Slots" alt="Slots">
-                <h3>Slots</h3>
+        <div id="login-section">
+            <h2>🎮 အကောင့်ဝင်ရန်</h2>
+            <input type="text" id="phone" placeholder="ဖုန်းနံပတ် (09xxxxxxxxx)">
+            <input type="password" id="pin" placeholder="PIN (6 လုံး)">
+            <button onclick="login()">ဝင်မည်</button>
+            <div id="login-result"></div>
+        </div>
+        <div id="game-section" style="display: none;">
+            <div id="status">Game Status: <span id="game-status">Waiting for Admin...</span></div>
+            <div class="game-grid">
+                <div class="game-card">
+                    <img src="https://via.placeholder.com/200x150?text=Roulette" alt="Roulette">
+                    <h3>Roulette</h3>
+                    <div id="roulette-wheel"><canvas id="wheel" width="200" height="200"></canvas></div>
+                    <div class="bet-table" id="betTable"></div>
+                    <div class="bet-chips">
+                        <div class="chip" data-value="1000" onclick="selectChip(1000)">1K</div>
+                        <div class="chip" data-value="10000" onclick="selectChip(10000)">10K</div>
+                        <div class="chip" data-value="100000" onclick="selectChip(100000)">100K</div>
+                    </div>
+                    <button onclick="spinRoulette()">Spin</button>
+                    <div id="roulette-result"></div>
+                </div>
+                <div class="game-card">
+                    <img src="https://via.placeholder.com/200x150?text=Slots" alt="Slots">
+                    <h3>Slots</h3>
+                    <button onclick="spinSlots()">Spin (100 MMK)</button>
+                    <div id="slots-result">ကစားရန် Spin နှိပ်ပါ!</div>
+                </div>
             </div>
         </div>
     </div>
@@ -108,7 +161,7 @@
 
     <script>
         const BASE_URL = 'https://casino-opper.netlify.app'; // Your Netlify URL
-        let userId;
+        let userId, balance = 0, bets = {}, selectedChip = null;
 
         async function fetchData() {
             try {
@@ -147,35 +200,77 @@
             return phone.slice(0, -3).replace(/[0-9]/g, '*') + phone.slice(-3);
         }
 
+        async function login() {
+            const phone = document.getElementById('phone').value;
+            const pin = document.getElementById('pin').value;
+            const resultDiv = document.getElementById('login-result');
+            if (!phone.match(/^09\d{8,9}$/) || pin.length !== 6) {
+                resultDiv.innerHTML = "❌ ဖုန်း သို့မဟုတ် PIN မမှန်ပါ!";
+                return;
+            }
+            resultDiv.innerHTML = "⏳ ချိတ်ဆက်နေပါသည်...";
+            userId = btoa(phone + pin);
+            try {
+                const data = await fetchData();
+                let users = data.users || {};
+                if (!users[userId]) {
+                    users[userId] = { 
+                        phone, 
+                        pin, 
+                        balance: 0, 
+                        totalWinnings: 0, 
+                        transactions: [], 
+                        createdAt: Date.now(), 
+                        lastActive: Date.now(), 
+                        warnings: 0, 
+                        banUntil: 0 
+                    };
+                    resultDiv.innerHTML = "✅ အကောင့်အသစ်ဖွင့်ပြီး!";
+                } else if (users[userId].pin === pin) {
+                    resultDiv.innerHTML = "✅ အကောင့်ဝင်ပြီး!";
+                } else {
+                    resultDiv.innerHTML = "❌ PIN မမှန်ပါ!";
+                    return;
+                }
+                users[userId].lastActive = Date.now();
+                await updateData({ users });
+                localStorage.setItem('loggedInUser', userId);
+                localStorage.setItem('phone', phone);
+                document.getElementById('login-section').style.display = 'none';
+                document.getElementById('profile-bar').style.display = 'flex';
+                document.getElementById('game-section').style.display = 'block';
+                setupBetTable();
+                updateUI();
+            } catch (e) {
+                resultDiv.innerHTML = `❌ ချိတ်ဆက်မှု မအောင်မြင်ပါ: ${e.message}`;
+            }
+        }
+
         async function updateUI() {
             const data = await fetchData();
             userId = localStorage.getItem('loggedInUser');
             if (!userId || !data.users || !data.users[userId]) {
-                window.location.href = 'login.html';
+                document.getElementById('login-section').style.display = 'block';
+                document.getElementById('profile-bar').style.display = 'none';
+                document.getElementById('game-section').style.display = 'none';
                 return;
             }
             const user = data.users[userId];
+            balance = user.balance || 0;
             document.getElementById('user-phone').innerHTML = maskPhoneNumber(user.phone);
-            document.getElementById('user-balance').innerHTML = user.balance || 0;
+            document.getElementById('user-balance').innerHTML = balance;
             document.getElementById('game-status').innerHTML = data.game && data.game.adminStarted ? 'Active' : 'Waiting for Admin...';
             user.lastActive = Date.now();
             await updateData({ users: data.users });
-        }
-
-        async function checkLoggedIn() {
-            userId = localStorage.getItem('loggedInUser');
-            if (!userId) {
-                window.location.href = 'login.html';
-                return;
-            }
-            await updateUI();
-            setInterval(updateUI, 1000); // Poll every second
+            setTimeout(updateUI, 1000); // Poll every second
         }
 
         function logout() {
             localStorage.removeItem('loggedInUser');
             localStorage.removeItem('phone');
-            window.location.href = 'login.html';
+            document.getElementById('login-section').style.display = 'block';
+            document.getElementById('profile-bar').style.display = 'none';
+            document.getElementById('game-section').style.display = 'none';
         }
 
         function showWithdrawModal() {
@@ -198,24 +293,146 @@
             const requestId = `${userId}_${Date.now()}`;
             data.requests = data.requests || {};
             data.requests[requestId] = { userId, phone: data.users[userId].phone, amount, withdrawPhone, type: 'withdraw', status: 'pending', timestamp: Date.now() };
-            data.users[userId].transactions = data.users[userId].transactions || [];
             data.users[userId].transactions.push({ type: 'withdraw', amount, status: 'pending', timestamp: Date.now() });
             await updateData({ users: data.users, requests: data.requests });
             closeModal('withdrawModal');
             updateUI();
         }
 
-        async function enterGame(gameUrl) {
+        // Roulette Game Logic
+        function setupBetTable() {
+            const table = [...Array.from({ length: 37 }, (_, i) => i)];
+            table.forEach(id => {
+                const div = document.createElement('div');
+                div.className = 'bet-area';
+                div.id = `bet-${id}`;
+                div.innerHTML = id;
+                div.onclick = () => placeBet(id);
+                document.getElementById('betTable').appendChild(div);
+            });
+        }
+
+        function selectChip(value) {
+            selectedChip = value;
+            document.querySelectorAll('.chip').forEach(chip => {
+                chip.classList.remove('active');
+                if (parseInt(chip.dataset.value) === value) chip.classList.add('active');
+            });
+        }
+
+        async function placeBet(id) {
+            if (!selectedChip || balance < selectedChip) return;
             const data = await fetchData();
             if (!data.game || !data.game.adminStarted) {
-                alert('Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ!');
+                document.getElementById('roulette-result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
                 return;
             }
-            window.location.href = gameUrl;
+            const user = data.users[userId];
+            if (!user || user.balance < selectedChip) return;
+            user.balance -= selectedChip;
+            bets[id] = (bets[id] || 0) + selectedChip;
+            user.bets = bets;
+            balance = user.balance;
+            data.users[userId] = user;
+            data.users[userId].transactions.push({ type: 'bet', game: 'roulette', amount: selectedChip, timestamp: Date.now() });
+            await updateData({ users: data.users });
+            updateBetTable();
+        }
+
+        function updateBetTable() {
+            const table = document.getElementById('betTable').children;
+            Array.from(table).forEach(area => {
+                const id = area.id.replace('bet-', '');
+                const amount = bets[id] || 0;
+                area.innerHTML = `${id}${amount > 0 ? ` (${amount})` : ''}`;
+            });
+        }
+
+        async function spinRoulette() {
+            const data = await fetchData();
+            if (!data.game || !data.game.adminStarted) {
+                document.getElementById('roulette-result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
+                return;
+            }
+            const user = data.users[userId];
+            if (!user || Object.keys(bets).length === 0) {
+                document.getElementById('roulette-result').innerHTML = "🎲 Bet တင်ပါ!";
+                return;
+            }
+            const result = Math.floor(Math.random() * 37);
+            drawWheel(result);
+            let winnings = 0;
+            if (bets[result]) winnings = bets[result] * 36;
+            user.balance += winnings;
+            user.totalWinnings = (user.totalWinnings || 0) + winnings;
+            user.transactions.push({ type: 'win', game: 'roulette', amount: winnings, timestamp: Date.now() });
+            bets = {};
+            data.users[userId] = user;
+            await updateData({ users: data.users });
+            document.getElementById('roulette-result').innerHTML = winnings ? `🎉 အနိုင်ရ: ${winnings} MMK` : '😢 အရှုံးပါ';
+            updateUI();
+        }
+
+        function drawWheel(result) {
+            const canvas = document.getElementById('wheel');
+            const ctx = canvas.getContext('2d');
+            const radius = canvas.width / 2;
+            const numbers = Array.from({ length: 37 }, (_, i) => i);
+            const colors = numbers.map(num => num === 0 ? '#00ff00' : (num % 2 === 0 ? '#ff0000' : '#000000'));
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(radius, radius);
+
+            numbers.forEach((num, i) => {
+                const angle = (i * 360 / 37) * Math.PI / 180;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.arc(0, 0, radius, angle, angle + (360 / 37) * Math.PI / 180);
+                ctx.fillStyle = colors[i];
+                ctx.fill();
+                ctx.strokeStyle = '#ffd700';
+                ctx.stroke();
+                ctx.save();
+                ctx.rotate(angle + (360 / 37 / 2) * Math.PI / 180);
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px Poppins';
+                ctx.fillText(num, radius - 20, 5);
+                ctx.restore();
+            });
+
+            if (result !== null) {
+                ctx.rotate((result * 360 / 37) * Math.PI / 180);
+            }
+            ctx.restore();
+        }
+
+        // Slots Game Logic
+        async function spinSlots() {
+            const data = await fetchData();
+            if (!data.game || !data.game.adminStarted) {
+                document.getElementById('slots-result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
+                return;
+            }
+            const user = data.users[userId];
+            const bet = 100;
+            if (!user || user.balance < bet) {
+                document.getElementById('slots-result').innerHTML = 'ငွေမလုံလောက်ပါ!';
+                return;
+            }
+            user.balance -= bet;
+            const result = Math.random() < 0.3 ? bet * 2 : 0; // 30% chance to win
+            user.balance += result;
+            user.totalWinnings = (user.totalWinnings || 0) + result;
+            user.transactions.push({ type: 'bet', game: 'slots', amount: bet, timestamp: Date.now() });
+            if (result > 0) user.transactions.push({ type: 'win', game: 'slots', amount: result, timestamp: Date.now() });
+            await updateData({ users: data.users });
+            document.getElementById('slots-result').innerHTML = result > 0 ? `အနိုင်ရ: ${result} MMK!` : 'အရှုံးပါ!';
+            updateUI();
         }
 
         window.onload = () => {
-            checkLoggedIn();
+            updateUI();
         };
     </script>
 </body>
