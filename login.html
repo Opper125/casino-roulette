@@ -60,7 +60,7 @@
     </div>
 
     <script>
-        const BASE_URL = 'https://casino-opper.netlify.app'; // Replace with your Netlify URL
+        const BASE_URL = 'https://casino-opper.netlify.app'; // Your Netlify URL
 
         async function fetchData() {
             try {
@@ -104,11 +104,12 @@
                 return;
             }
             resultDiv.innerHTML = "⏳ ချိတ်ဆက်နေပါသည်...";
-            const userId = btoa(phone + pin);
+            const userId = btoa(phone + pin); // Unique user ID
             try {
                 const data = await fetchData();
                 let users = data.users || {};
                 if (!users[userId]) {
+                    // New user registration
                     users[userId] = { 
                         phone, 
                         pin, 
@@ -123,13 +124,19 @@
                         warnings: 0, 
                         banUntil: 0 
                     };
+                    resultDiv.innerHTML = "✅ အကောင့်အသစ်ဖွင့်ပြီး!";
+                } else if (users[userId].pin === pin) {
+                    // Existing user login
+                    resultDiv.innerHTML = "✅ အကောင့်ဝင်ပြီး!";
+                } else {
+                    resultDiv.innerHTML = "❌ PIN မမှန်ပါ!";
+                    return;
                 }
                 users[userId].lastActive = Date.now();
                 await updateData({ users });
                 localStorage.setItem('loggedInUser', userId);
                 localStorage.setItem('phone', phone);
-                resultDiv.innerHTML = "✅ အကောင့်ဝင်ပြီး!";
-                setTimeout(() => window.location.href = 'index.html', 1000);
+                setTimeout(() => window.location.href = 'index.html', 1000); // Redirect to Home Page
             } catch (e) {
                 resultDiv.innerHTML = `❌ ချိတ်ဆက်မှု မအောင်မြင်ပါ: ${e.message}`;
             }
