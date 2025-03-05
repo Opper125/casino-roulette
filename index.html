@@ -174,9 +174,6 @@
             <p id="online-players">Online ကစားသမား: 0 ဦး</p>
             <p>လက်ကျန်ငွေ: <span id="balance">0</span> ကျပ်</p>
             <button onclick="logout()">အကောင့်ထွက်မယ်</button>
-            <a href="https://casinoopper.netlify.app/user-info.html">အကောင့်သို့သွားမယ်</a>
-            <a href="https://casinoopper.netlify.app/game-list.html">ဂိမ်းမှတ်တမ်း</a>
-            <button onclick="window.location.href='https://casinoopper.netlify.app/customer-support.html'">ဆက်သွယ်ရန်</button>
         </div>
     </div>
 
@@ -323,7 +320,7 @@
             const totalBet = Object.values(allBets).reduce((sum, val) => sum + val, 0);
             document.getElementById('total-bet').innerText = `အားလုံး ထိုးကြေး: ${totalBet.toLocaleString()} ကျပ်`;
             const userBet = Object.values(bets).reduce((sum, val) => sum + val, 0);
-            document.getElementById('user-bet').innerText = `သင့် ထိုး�ကြေး: ${userBet.toLocaleString()} ကျပ်`;
+            document.getElementById('user-bet').innerText = `သင့် ထိုးကြေး: ${userBet.toLocaleString()} ကျပ်`;
         }
 
         function updateOnlinePlayers() {
