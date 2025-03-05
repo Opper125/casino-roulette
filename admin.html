@@ -53,11 +53,23 @@
             border-radius: 8px;
             color: #00ffcc;
         }
+        #timer {
+            font-size: 2em;
+            color: #00ff00;
+            margin: 15px 0;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Admin ထိန်းချုပ်မှု</h1>
+        <div id="timer">အချိန်: စောင့်ဆိုင်းနေသည်...</div>
         <h3>ဂိမ်းထိန်းချုပ်မှု</h3>
         <button id="gameToggle" onclick="toggleGame()">ဂိမ်းဖွင့်</button>
         <input type="number" id="customResult" placeholder="ရလဒ် နံပတ် (0-36)">
@@ -73,15 +85,17 @@
 
     <script>
         let gameActive = false;
+        let timeLeft = 0;
 
         async function toggleGame() {
             gameActive = !gameActive;
             document.getElementById('gameToggle').innerText = gameActive ? 'ဂိမ်းပိတ်မယ်' : 'ဂိမ်းဖွင့်မယ်';
             await fetch('https://casinoopper.netlify.app/.netlify/functions/game', {
                 method: 'POST',
-                body: JSON.stringify({ active: gameActive, timeLeft: 30 })
+                body: JSON.stringify({ active: gameActive, timeLeft: gameActive ? 30 : 0 })
             });
             if (!gameActive) localStorage.setItem('allBets', '{}');
+            updateTimer();
         }
 
         async function setCustomResult() {
@@ -94,6 +108,14 @@
             } else {
                 alert('နံပတ် 0-36 အတွင်း ထည့်ပါ။');
             }
+        }
+
+        async function updateTimer() {
+            const response = await fetch('https://casinoopper.netlify.app/.netlify/functions/game');
+            const data = await response.json();
+            gameActive = data.active;
+            timeLeft = data.timeLeft;
+            document.getElementById('timer').innerText = gameActive ? `အချိန်: ${timeLeft} စက္ကန့်` : 'အချိန်: စောင့်ဆိုင်းနေသည်...';
         }
 
         function deposit() {
@@ -170,7 +192,10 @@
         }
 
         loadTransactions();
-        setInterval(loadTransactions, 1000); // Real-time Update
+        setInterval(() => {
+            loadTransactions();
+            updateTimer();
+        }, 1000); // Real-time Update
         document.getElementById('gameToggle').innerText = gameActive ? 'ဂိမ်းပိတ်မယ်' : 'ဂိမ်းဖွင့်မယ်';
     </script>
 </body>
