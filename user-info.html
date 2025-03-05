@@ -3,128 +3,145 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Info</title>
+    <title>အကောင့် အချက်အလက်</title>
     <style>
-        body { 
-            font-family: 'Poppins', sans-serif; 
-            background: linear-gradient(135deg, #1a1a1a, #2c003e); 
-            color: #ffd700; 
-            margin: 0; 
-            padding: 20px; 
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1e1e1e, #4a00e0);
+            color: #fff;
+            margin: 0;
+            padding: 0;
         }
-        .container { 
-            max-width: 900px; 
-            margin: auto; 
-            background: rgba(30, 30, 30, 0.95); 
-            padding: 20px; 
-            border-radius: 15px; 
-            box-shadow: 0 0 30px rgba(255, 215, 0, 0.6); 
-            text-align: center; 
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            text-align: center;
         }
-        h1 { 
-            text-shadow: 0 0 15px #ffd700; 
-            font-size: 2em; 
-            margin: 0; 
+        h1, h3 {
+            color: #00ffcc;
+            text-shadow: 0 0 10px #00ffcc;
         }
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin-top: 20px; 
-            font-size: 14px; 
+        input, select, button {
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            margin: 10px 0;
+            width: 80%;
         }
-        th, td { 
-            padding: 10px; 
-            border: 1px solid #ffd700; 
+        input, select {
+            background: #333;
+            color: #fff;
         }
-        th { background: #333; }
-        button { 
-            padding: 10px 20px; 
-            background: linear-gradient(45deg, #ffd700, #b8860b); 
-            color: #000; 
-            border: none; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            margin: 5px; 
-            font-weight: bold; 
+        button {
+            background: #ff4500;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.1);
+            background: #ff6347;
+        }
+        p {
+            font-size: 1.2em;
+        }
+        a {
+            color: #00ffcc;
+            text-decoration: none;
+            margin: 10px 0;
+            display: block;
+        }
+        #transactionStatus {
+            color: #ffd700;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>👤 ကစားသူ အချက်အလက်များ</h1>
-        <button onclick="exportUserData()">📤 Export</button>
-        <button onclick="window.location.href='admin.html'">🏠 Back to Admin</button>
-        <table>
-            <thead>
-                <tr><th>ID</th><th>ဖုန်း</th><th>ငွေ (MMK)</th><th>Bet</th><th>အနိုင်</th><th>ဖန်တီးချိန်</th><th>နောက်ဆုံး အသုံး</th><th>သတိပေးချက်</th><th>ပိတ်ပင်</th></tr>
-            </thead>
-            <tbody id="userList"></tbody>
-        </table>
+        <h1>အကောင့် အချက်အလက်</h1>
+        <p>လက်ကျန်ငွေ: <span id="balance">0</span> ကျပ်</p>
+        <h3>ငွေသွင်းရန်:</h3>
+        <select id="paymentMethod">
+            <option value="kpay">KPay</option>
+            <option value="wave">Wave</option>
+        </select>
+        <input type="number" id="depositAmount" placeholder="ငွေပမာဏ">
+        <p>ငွေပို့ရန် ဖုန်းနံပတ်: 09786284670 (DHMK)</p>
+        <button onclick="requestDeposit()">ငွေသွင်းမယ်</button>
+        <h3>ငွေထုတ်ရန်:</h3>
+        <select id="withdrawMethod">
+            <option value="kpay">KPay</option>
+            <option value="wave">Wave</option>
+        </select>
+        <input type="text" id="phoneNumber" placeholder="ဖုန်းနံပတ်">
+        <input type="number" id="withdrawAmount" placeholder="ငွေပမာဏ">
+        <button onclick="requestWithdraw()">ငွေထုတ်မယ်</button>
+        <p id="transactionStatus"></p>
+        <a href="index.html">ဂိမ်းသို့ ပြန်သွားမယ်</a>
     </div>
 
     <script>
-        const BASE_URL = 'https://casino-opper.netlify.app'; // Your Netlify URL
+        let balance = parseInt(localStorage.getItem('balance')) || 0;
+        document.getElementById('balance').innerText = balance;
 
-        async function fetchData() {
-            try {
-                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
-                if (!response.ok) throw new Error('Server ချိတ်ဆက်မှု မအောင်မြင်ပါ');
-                const data = await response.json();
-                localStorage.setItem('offlineData', JSON.stringify(data));
-                return data;
-            } catch (e) {
-                console.error('Fetch failed:', e);
-                return JSON.parse(localStorage.getItem('offlineData') || '{}');
+        function requestDeposit() {
+            const method = document.getElementById('paymentMethod').value;
+            const amount = parseInt(document.getElementById('depositAmount').value);
+            if (amount <= 0) {
+                alert('ငွေပမာဏ မမှန်ပါ။');
+                return;
             }
+            const request = { type: 'deposit', method, amount, status: 'pending', timestamp: new Date().toLocaleString() };
+            handleTransaction(request);
         }
 
-        async function updateUserInfo() {
-            setInterval(async () => {
-                const data = await fetchData();
-                const userList = document.getElementById('userList');
-                userList.innerHTML = '';
-                const users = data.users || {};
-                Object.entries(users).forEach(([id, user]) => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${id.substr(0, 8)}...</td>
-                        <td>${maskPhoneNumber(user.phone)}</td>
-                        <td>${user.balance || 0}</td>
-                        <td>${user.totalBet || 0}</td>
-                        <td>${user.totalWinnings || 0}</td>
-                        <td>${new Date(user.createdAt).toLocaleString()}</td>
-                        <td>${new Date(user.lastActive).toLocaleString()}</td>
-                        <td>${user.warnings || 0}</td>
-                        <td>${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}</td>
-                    `;
-                    userList.appendChild(row);
-                });
-            }, 1000); // Update every second
+        function requestWithdraw() {
+            const method = document.getElementById('withdrawMethod').value;
+            const phone = document.getElementById('phoneNumber').value;
+            const amount = parseInt(document.getElementById('withdrawAmount').value);
+            if (amount <= 0 || amount > balance || !phone) {
+                alert('ငွေပမာဏ သို့မဟုတ် ဖုန်းနံပတ် မမှန်ပါ။');
+                return;
+            }
+            const request = { type: 'withdraw', method, phone, amount, status: 'pending', timestamp: new Date().toLocaleString() };
+            handleTransaction(request);
         }
 
-        function maskPhoneNumber(phone) {
-            return phone.slice(0, -3).replace(/[0-9]/g, '*') + phone.slice(-3);
+        function handleTransaction(request) {
+            let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+            transactions.push(request);
+            localStorage.setItem('transactions', JSON.stringify(transactions));
+            document.getElementById('transactionStatus').innerText = 'တောင်းဆိုမှု ပို့ပြီးပါပြီ။ Admin အတည်ပြုရန် စောင့်ပါ။';
+            simulateAdminApproval(request);
         }
 
-        async function exportUserData() {
-            const data = await fetchData();
-            const users = data.users || {};
-            let csv = 'ID,Phone,Balance,Total Bet,Total Winnings,Created At,Last Active,Warnings,Ban Until\n';
-            Object.entries(users).forEach(([id, user]) => {
-                csv += `${id},${maskPhoneNumber(user.phone)},${user.balance || 0},${user.totalBet || 0},${user.totalWinnings || 0},${new Date(user.createdAt).toLocaleString()},${new Date(user.lastActive).toLocaleString()},${user.warnings || 0},${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}\n`;
-            });
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'user_data.csv';
-            a.click();
-            URL.revokeObjectURL(url);
+        function simulateAdminApproval(request) {
+            setTimeout(() => {
+                let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+                const transaction = transactions.find(t => t.timestamp === request.timestamp);
+                if (transaction) {
+                    transaction.status = Math.random() > 0.2 ? 'approved' : 'rejected';
+                    if (transaction.status === 'approved') {
+                        if (transaction.type === 'deposit') {
+                            balance += transaction.amount;
+                        } else if (transaction.type === 'withdraw') {
+                            balance -= transaction.amount;
+                        }
+                        localStorage.setItem('balance', balance);
+                        document.getElementById('balance').innerText = balance;
+                        document.getElementById('transactionStatus').innerText = `Admin လက်ခံပါပြီ။ လက်ကျန်ငွေ: ${balance} ကျပ်`;
+                    } else {
+                        document.getElementById('transactionStatus').innerText = 'Admin ငြင်းပယ်ပါပြီ။';
+                    }
+                    localStorage.setItem('transactions', JSON.stringify(transactions));
+                }
+            }, 5000);
         }
-
-        window.onload = () => {
-            updateUserInfo();
-        };
     </script>
 </body>
 </html>
