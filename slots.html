@@ -36,13 +36,13 @@
             font-weight: bold; 
             margin: 5px; 
         }
-        button:hover { transform: scale(1.05); }
         #slot-result { font-size: 1.5em; margin-top: 20px; }
     </style>
 </head>
 <body>
     <div class="game-container">
         <h1>🎰 Slots ဂိမ်း</h1>
+        <div id="online-players">Online Players: 0</div>
         <div>Balance: <span id="balance">0</span> MMK</div>
         <button onclick="spin()">Spin (100 MMK)</button>
         <button onclick="window.location.href='index.html'">🏠 Back to Home</button>
@@ -51,6 +51,7 @@
 
     <script>
         const BASE_URL = 'https://casino-opper.netlify.app';
+        let userId;
 
         async function fetchData() {
             try {
@@ -65,55 +66,74 @@
 
         async function updateData(updates) {
             if (navigator.onLine) {
-                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updates)
-                });
-                const data = await response.json();
-                localStorage.setItem('offlineData', JSON.stringify(data));
-                return data;
-            } else {
-                let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
-                localData = { ...localData, ...updates };
-                localStorage.setItem('offlineData', JSON.stringify(localData));
-                return localData;
+                try {
+                    const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updates)
+                    });
+                    const data = await response.json();
+                    localStorage.setItem('offlineData', JSON.stringify(data));
+                    return data;
+                } catch (e) {
+                    console.error('Update failed:', e);
+                }
             }
+            let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
+            localData = { ...localData, ...updates };
+            localStorage.setItem('offlineData', JSON.stringify(localData));
+            return localData;
         }
 
-        async function updateBalance() {
-            const userId = localStorage.getItem('loggedInUser');
-            if (!userId) {
+        async function updateUI() {
+            const data = await fetchData();
+            userId = localStorage.getItem('loggedInUser');
+            if (!userId || !data.users || !data.users[userId]) {
                 window.location.href = 'login.html';
                 return;
             }
-            const data = await fetchData();
-            if (data.users && data.users[userId]) {
-                document.getElementById('balance').innerHTML = data.users[userId].balance || 0;
+            if (!data.game || !data.game.adminStarted) {
+                document.getElementById('slot-result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
+                return;
             }
+            document.getElementById('balance').innerHTML = data.users[userId].balance || 0;
+
+            let onlineCount = 0;
+            Object.values(data.users || {}).forEach(user => {
+                if (Date.now() - user.lastActive < 30000) onlineCount++;
+            });
+            document.getElementById('online-players').innerHTML = `Online Players: ${onlineCount}`;
+            data.users[userId].lastActive = Date.now();
+            data.users[userId].transactions = data.users[userId].transactions || [];
+            data.users[userId].transactions.push({ type: 'game', game: 'slots', timestamp: Date.now() });
+            await updateData({ users: data.users });
         }
 
         async function spin() {
-            const userId = localStorage.getItem('loggedInUser');
-            const bet = 100;
             const data = await fetchData();
-            if (!data.users || !data.users[userId] || data.users[userId].balance < bet) {
+            if (!data.game || !data.game.adminStarted) {
+                document.getElementById('slot-result').innerHTML = "⏳ Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ...";
+                return;
+            }
+            const bet = 100;
+            if (!data.users[userId] || data.users[userId].balance < bet) {
                 document.getElementById('slot-result').innerHTML = 'ငွေမလုံလောက်ပါ!';
                 return;
             }
-
             data.users[userId].balance -= bet;
-            const result = Math.random() < 0.3 ? bet * 2 : 0; // 30% chance to win
+            const result = Math.random() < 0.3 ? bet * 2 : 0;
             data.users[userId].balance += result;
             data.users[userId].totalWinnings = (data.users[userId].totalWinnings || 0) + result;
+            data.users[userId].transactions.push({ type: 'bet', game: 'slots', amount: bet, timestamp: Date.now() });
+            if (result > 0) data.users[userId].transactions.push({ type: 'win', game: 'slots', amount: result, timestamp: Date.now() });
             await updateData({ users: data.users });
-            
             document.getElementById('slot-result').innerHTML = result > 0 ? `အနိုင်ရ: ${result} MMK!` : 'အရှုံးပါ!';
-            updateBalance();
+            updateUI();
         }
 
         window.onload = () => {
-            updateBalance();
+            updateUI();
+            setInterval(updateUI, 1000);
         };
     </script>
 </body>
