@@ -22,7 +22,6 @@
             border-radius: 15px; 
             box-shadow: 0 0 30px rgba(255, 215, 0, 0.6); 
             text-align: center; 
-            animation: slideIn 0.5s ease-in-out; 
         }
         h2 { 
             text-shadow: 0 0 15px #ffd700; 
@@ -47,10 +46,8 @@
             border-radius: 8px; 
             cursor: pointer; 
             font-weight: bold; 
-            transition: transform 0.2s; 
         }
-        button:hover { transform: scale(1.05); }
-        @keyframes slideIn { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        #result { margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -63,71 +60,79 @@
     </div>
 
     <script>
-        const BASE_URL = 'https://casino-opper.netlify.app';
+        const BASE_URL = 'https://casino-opper.netlify.app'; // Replace with your Netlify URL
 
         async function fetchData() {
             try {
                 const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
+                if (!response.ok) throw new Error('Server ချိတ်ဆက်မှု မအောင်မြင်ပါ');
                 const data = await response.json();
                 localStorage.setItem('offlineData', JSON.stringify(data));
                 return data;
             } catch (e) {
+                console.error('Fetch failed:', e);
                 return JSON.parse(localStorage.getItem('offlineData') || '{}');
             }
         }
 
         async function updateData(updates) {
-            if (navigator.onLine) {
-                try {
-                    const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(updates)
-                    });
-                    const data = await response.json();
-                    localStorage.setItem('offlineData', JSON.stringify(data));
-                    return data;
-                } catch (e) {
-                    console.error('Update failed:', e);
-                }
+            try {
+                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+                if (!response.ok) throw new Error('Server သို့ ဒေတာပို့မှု မအောင်မြင်ပါ');
+                const data = await response.json();
+                localStorage.setItem('offlineData', JSON.stringify(data));
+                return data;
+            } catch (e) {
+                console.error('Update failed:', e);
+                let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
+                localData = { ...localData, ...updates };
+                localStorage.setItem('offlineData', JSON.stringify(localData));
+                return localData;
             }
-            let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
-            localData = { ...localData, ...updates };
-            localStorage.setItem('offlineData', JSON.stringify(localData));
-            return localData;
         }
 
         async function login() {
             const phone = document.getElementById('phone').value;
             const pin = document.getElementById('pin').value;
+            const resultDiv = document.getElementById('result');
             if (!phone.match(/^09\d{8,9}$/) || pin.length !== 6) {
-                document.getElementById('result').innerHTML = "❌ ဖုန်း သို့မဟုတ် PIN မမှန်ပါ!";
+                resultDiv.innerHTML = "❌ ဖုန်း သို့မဟုတ် PIN မမှန်ပါ!";
                 return;
             }
+            resultDiv.innerHTML = "⏳ ချိတ်ဆက်နေပါသည်...";
             const userId = btoa(phone + pin);
-            const data = await fetchData();
-            let users = data.users || {};
-            if (!users[userId]) {
-                users[userId] = { 
-                    phone, 
-                    pin, 
-                    balance: 0, 
-                    bets: {}, 
-                    totalBet: 0, 
-                    totalWinnings: 0, 
-                    transactions: [], 
-                    messages: [], 
-                    createdAt: Date.now(), 
-                    lastActive: Date.now(), 
-                    warnings: 0, 
-                    banUntil: 0 
-                };
+            try {
+                const data = await fetchData();
+                let users = data.users || {};
+                if (!users[userId]) {
+                    users[userId] = { 
+                        phone, 
+                        pin, 
+                        balance: 0, 
+                        bets: {}, 
+                        totalBet: 0, 
+                        totalWinnings: 0, 
+                        transactions: [], 
+                        messages: [], 
+                        createdAt: Date.now(), 
+                        lastActive: Date.now(), 
+                        warnings: 0, 
+                        banUntil: 0 
+                    };
+                }
+                users[userId].lastActive = Date.now();
+                await updateData({ users });
+                localStorage.setItem('loggedInUser', userId);
+                localStorage.setItem('phone', phone);
+                resultDiv.innerHTML = "✅ အကောင့်ဝင်ပြီး!";
+                setTimeout(() => window.location.href = 'index.html', 1000);
+            } catch (e) {
+                resultDiv.innerHTML = `❌ ချိတ်ဆက်မှု မအောင်မြင်ပါ: ${e.message}`;
             }
-            users[userId].lastActive = Date.now();
-            await updateData({ users });
-            localStorage.setItem('loggedInUser', userId);
-            localStorage.setItem('phone', phone);
-            window.location.href = 'index.html';
         }
     </script>
 </body>
