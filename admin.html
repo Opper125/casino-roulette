@@ -57,10 +57,9 @@
 <body>
     <div class="container">
         <h1>🎰 Admin Dashboard</h1>
-        <div id="game-status">Game Status: <span id="state">Betting</span> | Time Left: <span id="timeLeft">30s</span></div>
-        <div id="online-players">Online Players: 0</div>
-        <button onclick="startGame()">▶️ Start</button>
-        <button onclick="stopGame()">⏹️ Stop</button>
+        <div id="game-status">Game Status: <span id="state">Stopped</span> | Online Players: <span id="online-players">0</span></div>
+        <button onclick="startGame()">▶️ Start Games</button>
+        <button onclick="stopGame()">⏹️ Stop Games</button>
         <div id="deposit-control">
             <h3>ငွေသွင်း</h3>
             <input type="text" id="deposit-phone" placeholder="ဖုန်းနံပတ် (09xxxxxxxxx)">
@@ -114,14 +113,13 @@
         function manageGameServer() {
             setInterval(async () => {
                 const data = await fetchData();
-                document.getElementById('state').innerHTML = data.game.state;
-                document.getElementById('timeLeft').innerHTML = `${data.game.timeLeft}s`;
+                document.getElementById('state').innerHTML = data.game && data.game.adminStarted ? 'Active' : 'Stopped';
 
                 let onlineCount = 0;
                 Object.values(data.users || {}).forEach(user => {
                     if (Date.now() - user.lastActive < 30000) onlineCount++; // Online if active in last 30s
                 });
-                document.getElementById('online-players').innerHTML = `Online Players: ${onlineCount}`;
+                document.getElementById('online-players').innerHTML = onlineCount;
 
                 const requests = data.requests || {};
                 const withdrawDiv = document.getElementById('withdraw-requests');
@@ -145,14 +143,14 @@
 
         async function startGame() {
             const data = await fetchData();
-            await updateData({ game: { ...data.game, adminStarted: true } });
-            alert('ဂိမ်းစတင်ပြီး');
+            await updateData({ game: { adminStarted: true } });
+            alert('ဂိမ်းများ စတင်ပြီး');
         }
 
         async function stopGame() {
             const data = await fetchData();
-            await updateData({ game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, nextResult: null } });
-            alert('ဂိမ်းရပ်တန့်ပြီး');
+            await updateData({ game: { adminStarted: false } });
+            alert('ဂိမ်းများ ရပ်တန့်ပြီး');
         }
 
         async function approveRequest(id) {
@@ -160,7 +158,8 @@
             const req = data.requests[id];
             if (!req || !data.users[req.userId]) return;
             data.transactions[req.userId] = data.transactions[req.userId] || [];
-            data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'approved';
+            const tx = data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp);
+            if (tx) tx.status = 'approved';
             req.status = 'approved';
             await updateData({ requests: data.requests, transactions: data.transactions });
         }
@@ -171,7 +170,8 @@
             if (!req || !data.users[req.userId]) return;
             data.users[req.userId].balance += req.amount;
             data.transactions[req.userId] = data.transactions[req.userId] || [];
-            data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'rejected';
+            const tx = data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp);
+            if (tx) tx.status = 'rejected';
             req.status = 'rejected';
             await updateData({ users: data.users, requests: data.requests, transactions: data.transactions });
         }
