@@ -1,0 +1,11 @@
+[build]
+  publish = "/"  # Deploy လုပ်မယ့် Directory (Root)
+  command = ""   # Build Command မလိုအပ်တာကို ရှင်းလင်းပြတာ
+
+[dev]
+  autoLaunch = true  # Local Development အတွက်
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200  # Single Page App အတွက် Redirect (Optional)
