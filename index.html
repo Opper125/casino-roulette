@@ -20,14 +20,12 @@
             background: rgba(30, 30, 30, 0.95); 
             border-radius: 15px; 
             box-shadow: 0 0 30px rgba(255, 215, 0, 0.6); 
-            animation: fadeIn 0.5s ease-in-out; 
         }
         h1 { 
             text-shadow: 0 0 15px #ffd700; 
             font-size: 2.5em; 
             margin: 0; 
             text-align: center; 
-            animation: glow 2s infinite alternate; 
         }
         .profile-bar { 
             display: flex; 
@@ -37,7 +35,6 @@
             background: #333; 
             border-radius: 10px; 
             margin-bottom: 20px; 
-            box-shadow: 0 0 10px rgba(255, 215, 0, 0.3); 
         }
         .profile-info { font-size: 1.2em; }
         .game-grid { 
@@ -52,12 +49,10 @@
             border-radius: 10px; 
             text-align: center; 
             cursor: pointer; 
-            transition: transform 0.3s, box-shadow 0.3s; 
-            box-shadow: 0 0 15px rgba(255, 215, 0, 0.2); 
+            transition: transform 0.3s; 
         }
         .game-card:hover { 
             transform: scale(1.05); 
-            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); 
         }
         .game-card img { 
             width: 100%; 
@@ -72,11 +67,7 @@
             border-radius: 8px; 
             cursor: pointer; 
             font-weight: bold; 
-            transition: transform 0.2s; 
         }
-        button:hover { transform: scale(1.05); }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes glow { from { text-shadow: 0 0 10px #ffd700; } to { text-shadow: 0 0 20px #ffd700; } }
     </style>
 </head>
 <body>
@@ -106,7 +97,7 @@
     </div>
 
     <div class="modal" id="withdrawModal" style="display: none;">
-        <div class="modal-content">
+        <div class="modal-content" style="background: #1e1e1e; padding: 20px; border-radius: 10px; color: #ffd700;">
             <h2>🏦 Withdraw</h2>
             <input type="text" id="withdraw-phone" placeholder="Kpay/Wave ဖုန်းနံပတ်">
             <input type="number" id="withdraw-amount" placeholder="ငွေပမာဏ (MMK)">
@@ -116,39 +107,40 @@
     </div>
 
     <script>
-        const BASE_URL = 'https://casino-opper.netlify.app';
+        const BASE_URL = 'https://casino-opper.netlify.app'; // Your Netlify URL
         let userId;
 
         async function fetchData() {
             try {
                 const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
+                if (!response.ok) throw new Error('Server ချိတ်ဆက်မှု မအောင်မြင်ပါ');
                 const data = await response.json();
                 localStorage.setItem('offlineData', JSON.stringify(data));
                 return data;
             } catch (e) {
+                console.error('Fetch failed:', e);
                 return JSON.parse(localStorage.getItem('offlineData') || '{}');
             }
         }
 
         async function updateData(updates) {
-            if (navigator.onLine) {
-                try {
-                    const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(updates)
-                    });
-                    const data = await response.json();
-                    localStorage.setItem('offlineData', JSON.stringify(data));
-                    return data;
-                } catch (e) {
-                    console.error('Update failed:', e);
-                }
+            try {
+                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+                if (!response.ok) throw new Error('Server သို့ ဒေတာပို့မှု မအောင်မြင်ပါ');
+                const data = await response.json();
+                localStorage.setItem('offlineData', JSON.stringify(data));
+                return data;
+            } catch (e) {
+                console.error('Update failed:', e);
+                let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
+                localData = { ...localData, ...updates };
+                localStorage.setItem('offlineData', JSON.stringify(localData));
+                return localData;
             }
-            let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
-            localData = { ...localData, ...updates };
-            localStorage.setItem('offlineData', JSON.stringify(localData));
-            return localData;
         }
 
         function maskPhoneNumber(phone) {
@@ -166,6 +158,8 @@
             document.getElementById('user-phone').innerHTML = maskPhoneNumber(user.phone);
             document.getElementById('user-balance').innerHTML = user.balance || 0;
             document.getElementById('game-status').innerHTML = data.game && data.game.adminStarted ? 'Active' : 'Waiting for Admin...';
+            user.lastActive = Date.now();
+            await updateData({ users: data.users });
         }
 
         async function checkLoggedIn() {
@@ -180,7 +174,8 @@
 
         function logout() {
             localStorage.removeItem('loggedInUser');
-            window.location.reload();
+            localStorage.removeItem('phone');
+            window.location.href = 'login.html';
         }
 
         function showWithdrawModal() {
