@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>အကောင့် အချက်အလက်</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1a1a1a, #2e0047);
+            color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+            text-align: center;
+        }
+        h1, h3 {
+            color: #ffd700;
+            text-shadow: 0 0 15px #ffd700;
+        }
+        input, select, button {
+            padding: 12px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            margin: 10px 0;
+            width: 80%;
+            background: #333;
+            color: #fff;
+        }
+        button {
+            background: #ff4500;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.3s;
+        }
+        button:hover {
+            transform: scale(1.1);
+            background: #ff6347;
+        }
+        p {
+            font-size: 1.2em;
+            color: #00ffcc;
+        }
+        a {
+            color: #ffd700;
+            text-decoration: none;
+            margin: 10px 0;
+            display: block;
+            transition: color 0.3s;
+        }
+        a:hover {
+            color: #ff4500;
+        }
+        #transactionStatus {
+            color: #ffd700;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>အကောင့် အချက်အလက်</h1>
+        <p>လက်ကျန်ငွေ: <span id="balance">0</span> ကျပ်</p>
+        <h3>ငွေသွင်းရန်:</h3>
+        <select id="paymentMethod">
+            <option value="kpay">KPay</option>
+            <option value="wave">Wave</option>
+        </select>
+        <input type="number" id="depositAmount" placeholder="ငွေပမာဏ">
+        <p>ငွေပို့ရန် ဖုန်းနံပတ်: 09786284670 (DHMK)</p>
+        <button onclick="requestDeposit()">ငွေသွင်းမယ်</button>
+        <h3>ငွေထုတ်ရန်:</h3>
+        <select id="withdrawMethod">
+            <option value="kpay">KPay</option>
+            <option value="wave">Wave</option>
+        </select>
+        <input type="text" id="phoneNumber" placeholder="ဖုန်းနံပတ်">
+        <input type="number" id="withdrawAmount" placeholder="ငွေပမာဏ">
+        <button onclick="requestWithdraw()">ငွေထုတ်မယ်</button>
+        <p id="transactionStatus"></p>
+        <a href="/index.html">ဂိမ်းသို့ ပြန်သွားမယ်</a>
+    </div>
+
+    <script>
+        let balance = parseInt(localStorage.getItem('balance')) || 0;
+        document.getElementById('balance').innerText = balance;
+
+        function requestDeposit() {
+            const method = document.getElementById('paymentMethod').value;
+            const amount = parseInt(document.getElementById('depositAmount').value);
+            if (amount <= 0) {
+                alert('ငွေပမာဏ မမှန်ပါ။');
+                return;
+            }
+            const request = { type: 'deposit', method, amount, status: 'pending', timestamp: new Date().toLocaleString() };
+            handleTransaction(request);
+        }
+
+        function requestWithdraw() {
+            const method = document.getElementById('withdrawMethod').value;
+            const phone = document.getElementById('phoneNumber').value;
+            const amount = parseInt(document.getElementById('withdrawAmount').value);
+            if (amount <= 0 || amount > balance || !phone) {
+                alert('ငွေပမာဏ သို့မဟုတ် ဖုန်းနံပတ် မမှန်ပါ။');
+                return;
+            }
+            const request = { type: 'withdraw', method, phone, amount, status: 'pending', timestamp: new Date().toLocaleString() };
+            handleTransaction(request);
+        }
+
+        function handleTransaction(request) {
+            let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+            transactions.push(request);
+            localStorage.setItem('transactions', JSON.stringify(transactions));
+            document.getElementById('transactionStatus').innerText = 'တောင်းဆိုမှု ပို့ပြီးပါပြီ။ Admin အတည်ပြုရန် စောင့်ပါ။';
+        }
+    </script>
+</body>
+</html>
