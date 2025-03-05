@@ -45,9 +45,9 @@
             border: 2px solid #ffd700;
         }
         .slot {
-            padding: 15px;
+            padding: 10px;
             text-align: center;
-            font-size: 1.2em;
+            font-size: 0.9em;
             cursor: pointer;
             background: #444;
             border-radius: 5px;
@@ -60,6 +60,31 @@
         .red { background: #ff4500; }
         .black { background: #1a1a1a; }
         .green { background: #00ff00; }
+        .special-slot {
+            background: #444;
+            font-size: 0.8em;
+        }
+        .special-slot.red { background: #ff4500; }
+        .special-slot.black { background: #1a1a1a; }
+        .total-bet {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: #ff0000;
+            color: #fff;
+            padding: 2px 5px;
+            border-radius: 50%;
+            font-size: 0.7em;
+        }
+        .user-bet {
+            display: block;
+            background: #fff;
+            color: #000;
+            padding: 2px 5px;
+            border-radius: 5px;
+            font-size: 0.7em;
+            margin-top: 5px;
+        }
         #chit-container {
             display: flex;
             justify-content: center;
@@ -153,8 +178,108 @@
             0% { transform: translateY(20px); opacity: 0; }
             100% { transform: translateY(0); opacity: 1; }
         }
-        #support-menu {
-            margin: 20px 0;
+        #spin-wheel-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+        #spin-wheel {
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: conic-gradient(
+                #00ff00 0deg 10deg, /* 0 */
+                #ff4500 10deg 20deg, /* 32 */
+                #1a1a1a 20deg 30deg, /* 15 */
+                #ff4500 30deg 40deg, /* 19 */
+                #1a1a1a 40deg 50deg, /* 4 */
+                #ff4500 50deg 60deg, /* 21 */
+                #1a1a1a 60deg 70deg, /* 2 */
+                #ff4500 70deg 80deg, /* 25 */
+                #1a1a1a 80deg 90deg, /* 17 */
+                #ff4500 90deg 100deg, /* 34 */
+                #1a1a1a 100deg 110deg, /* 6 */
+                #ff4500 110deg 120deg, /* 27 */
+                #1a1a1a 120deg 130deg, /* 13 */
+                #ff4500 130deg 140deg, /* 36 */
+                #1a1a1a 140deg 150deg, /* 11 */
+                #ff4500 150deg 160deg, /* 30 */
+                #1a1a1a 160deg 170deg, /* 8 */
+                #ff4500 170deg 180deg, /* 23 */
+                #1a1a1a 180deg 190deg, /* 10 */
+                #ff4500 190deg 200deg, /* 5 */
+                #1a1a1a 200deg 210deg, /* 24 */
+                #ff4500 210deg 220deg, /* 16 */
+                #1a1a1a 220deg 230deg, /* 33 */
+                #ff4500 230deg 240deg, /* 1 */
+                #1a1a1a 240deg 250deg, /* 20 */
+                #ff4500 250deg 260deg, /* 14 */
+                #1a1a1a 260deg 270deg, /* 31 */
+                #ff4500 270deg 280deg, /* 9 */
+                #1a1a1a 280deg 290deg, /* 22 */
+                #ff4500 290deg 300deg, /* 18 */
+                #1a1a1a 300deg 310deg, /* 29 */
+                #ff4500 310deg 320deg, /* 7 */
+                #1a1a1a 320deg 330deg, /* 28 */
+                #ff4500 330deg 340deg, /* 12 */
+                #1a1a1a 340deg 350deg, /* 35 */
+                #ff4500 350deg 360deg /* 3 */
+            );
+            border: 10px solid #d4af37;
+            position: relative;
+            animation: spin 5s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #wheel-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 50px;
+            height: 50px;
+            background: #d4af37;
+            border-radius: 50%;
+        }
+        #wheel-pointer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(45deg);
+            width: 60px;
+            height: 60px;
+            background: transparent;
+            border: 2px solid #000;
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+        }
+        #wheel-ball {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            background: #fff;
+            border-radius: 50%;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: spinBall 5s linear infinite;
+        }
+        @keyframes spinBall {
+            0% { transform: translateX(-50%) rotate(0deg); }
+            100% { transform: translateX(-50%) rotate(-360deg); }
+        }
+        .wheel-number {
+            position: absolute;
+            color: #fff;
+            font-size: 0.8em;
+            text-align: center;
+            transform: rotate(calc(var(--angle) * 1deg));
+            top: 10px;
+            left: 50%;
+            transform-origin: center 140px;
         }
     </style>
 </head>
@@ -177,8 +302,13 @@
             <p id="online-players">Online ကစားသမား: 0 ဦး</p>
             <p>လက်ကျန်ငွေ: <span id="balance">0</span> ကျပ်</p>
             <button onclick="logout()">အကောင့်ထွက်မယ်</button>
-            <div id="support-menu">
-                <button onclick="window.location.href='https://casinoopper.netlify.app/customer-support.html'">ကစားသမား အကူအညီ</button>
+            <button onclick="window.location.href='https://casinoopper.netlify.app/customer-support.html'">ဆက်သွယ်ရန်</button>
+        </div>
+        <div id="spin-wheel-container">
+            <div id="spin-wheel">
+                <div id="wheel-center"></div>
+                <div id="wheel-pointer"></div>
+                <div id="wheel-ball"></div>
             </div>
         </div>
     </div>
@@ -192,6 +322,7 @@
         let gameActive = false;
         let history = [];
         let onlinePlayers = new Set();
+        let adminResult = null;
 
         const chits = [
             { value: 1000, label: "💰 1k" },
@@ -205,22 +336,36 @@
             { value: 10000000, label: "💰 10M" }
         ];
 
+        const wheelNumbers = [
+            "0", "32", "15", "19", "4", "21", "2", "25", "17", "34", "6", "27", "13", "36",
+            "11", "30", "8", "23", "10", "5", "24", "16", "33", "1", "20", "14", "31", "9",
+            "22", "18", "29", "7", "28", "12", "35", "3", "26"
+        ];
+
         function createRouletteTable() {
             const table = document.getElementById('roulette-table');
             table.innerHTML = '';
             const numbers = [
-                "0", "3", "6", "9", "12", "15", "18", "21", "24", "27", "30", "33", "36",
-                "2", "5", "8", "11", "14", "17", "20", "23", "26", "29", "32", "35", "1",
-                "4", "7", "10", "13", "16", "19", "22", "25", "28", "31", "34"
+                "00", "3", "6", "9", "12", "15", "18", "21", "24", "27", "30", "33", "36", "2to1",
+                "0", "2", "5", "8", "11", "14", "17", "20", "23", "26", "29", "32", "35", "2to1",
+                "", "1", "4", "7", "10", "13", "16", "19", "22", "25", "28", "31", "34", "2to1",
+                "", "1st 12", "1st 12", "1st 12", "2nd 12", "2nd 12", "2nd 12", "3rd 12", "3rd 12", "3rd 12", "", "", "",
+                "", "1 to 18", "EVEN", "Red", "Black", "ODD", "19 to 36", "", "", "", "", "", ""
             ];
             numbers.forEach((num, index) => {
                 const slot = document.createElement('div');
                 slot.className = 'slot';
+                if (index % 14 >= 1 && index % 14 <= 12 && num !== "") {
+                    slot.className += (["3", "9", "12", "18", "21", "27", "30", "36", "5", "14", "23", "32", "1", "7", "16", "19", "25", "34"].includes(num) ? ' red' : ' black');
+                } else if (["00", "0"].includes(num)) {
+                    slot.className += ' green';
+                } else if (["1st 12", "2nd 12", "3rd 12", "1 to 18", "EVEN", "ODD", "19 to 36", "2to1"].includes(num)) {
+                    slot.className += ' special-slot';
+                    if (num === "Red") slot.className += ' red';
+                    if (num === "Black") slot.className += ' black';
+                }
                 slot.innerText = num;
-                if (num === "0") slot.classList.add('green');
-                else if (["3", "9", "12", "18", "21", "27", "30", "36", "5", "14", "23", "32", "1", "7", "16", "19", "25", "34"].includes(num)) slot.classList.add('red');
-                else slot.classList.add('black');
-                slot.onclick = () => placeBet(num);
+                if (num) slot.onclick = () => placeBet(num);
                 table.appendChild(slot);
             });
         }
@@ -237,6 +382,18 @@
             });
         }
 
+        function createWheel() {
+            const wheel = document.getElementById('spin-wheel');
+            wheelNumbers.forEach((num, index) => {
+                const angle = (index * 360) / wheelNumbers.length;
+                const div = document.createElement('div');
+                div.className = 'wheel-number';
+                div.style.setProperty('--angle', angle);
+                div.innerText = num;
+                wheel.appendChild(div);
+            });
+        }
+
         function selectChit(value) {
             currentChit = value;
             document.querySelectorAll('.chit').forEach(chit => chit.classList.remove('selected'));
@@ -249,7 +406,7 @@
             if (!currentChit) return alert('လောင်းကြေး ရွေးပါ။');
             if (!gameActive) return alert('ဂိမ်းပိတ်ထားပါသည်။');
             if (timeLeft <= 7) return alert('လောင်းကြေး ပိတ်ပါပြီ။');
-            if (currentChit > balance) return alert('လက်ကျန်ငွေ မလုံလောက်ပါ။');
+            if (currentChit > balance) return alert('လက်�ကျန်ငွေ မလုံလောက်ပါ။');
             bets[num] = (bets[num] || 0) + currentChit;
             balance -= currentChit;
             updateBalance();
@@ -260,8 +417,21 @@
         function updateTable() {
             document.querySelectorAll('.slot').forEach(slot => {
                 const num = slot.innerText.split('\n')[0];
+                if (!num) return;
                 const allBets = JSON.parse(localStorage.getItem('allBets') || '{}');
-                slot.innerHTML = `${num}<br>💰 စုစုပေါင်း: ${(allBets[num] || 0).toLocaleString()} ကျပ်<br>💰 သင်: ${(bets[num] || 0).toLocaleString()} ကျပ်`;
+                slot.innerHTML = num;
+                if (allBets[num] && allBets[num] > 0) {
+                    const totalBetDiv = document.createElement('div');
+                    totalBetDiv.className = 'total-bet';
+                    totalBetDiv.innerText = allBets[num].toLocaleString();
+                    slot.appendChild(totalBetDiv);
+                }
+                if (bets[num] && bets[num] > 0) {
+                    const userBetDiv = document.createElement('div');
+                    userBetDiv.className = 'user-bet';
+                    userBetDiv.innerText = bets[num].toLocaleString();
+                    slot.appendChild(userBetDiv);
+                }
             });
         }
 
@@ -270,15 +440,31 @@
             const data = await response.json();
             gameActive = data.active;
             timeLeft = data.timeLeft;
-            document.getElementById('timer').innerText = gameActive ? `အချိန်: ${timeLeft} စက္ကန့်` : 'အချိန်: စောင့်ဆိုင်းနေသည်...';
-            if (timeLeft <= 0 && gameActive) {
-                const result = data.result || Math.floor(Math.random() * 37);
-                document.getElementById('result').innerHTML = `ရလဒ်: <span>${result}</span>`;
-                calculatePayout(result);
-                addHistory(result);
+            adminResult = data.result;
+            document.getElementById('timer').innerText = gameActive ? `အချိန်: ${timeLeft} စက္ကန့်` : 'အချိန်: ဂိမ်းပိတ်ထားသည်';
+            if (!gameActive) {
+                document.getElementById('spin-wheel-container').style.display = 'none';
                 bets = {};
                 updateTable();
                 updateTotalBet();
+            } else if (timeLeft <= 0) {
+                document.getElementById('roulette-table').style.display = 'none';
+                document.getElementById('spin-wheel-container').style.display = 'block';
+                const result = adminResult || Math.floor(Math.random() * 37);
+                const angle = (wheelNumbers.indexOf(result.toString()) * 360) / wheelNumbers.length;
+                document.getElementById('wheel-ball').style.animation = `spinBall 5s linear forwards`;
+                setTimeout(() => {
+                    document.getElementById('result').innerHTML = `ရလဒ်: <span>${result}</span>`;
+                    calculatePayout(result);
+                    addHistory(result);
+                    bets = {};
+                    updateTable();
+                    updateTotalBet();
+                    setTimeout(() => {
+                        document.getElementById('spin-wheel-container').style.display = 'none';
+                        document.getElementById('roulette-table').style.display = 'grid';
+                    }, 5000);
+                }, 5000);
             }
             updateOnlinePlayers();
         }
@@ -295,7 +481,41 @@
                 balance += payout;
                 document.getElementById('result').innerHTML += ` - အနိုင်ရပါပြီ! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
                 document.getElementById('balance').classList.add('payout-animation');
-                setTimeout(() => document.getElementById('balance').classList.remove('payout-animation'), 1000);
+            } else if (result % 2 === 0 && bets["EVEN"]) {
+                const payout = bets["EVEN"] * 2;
+                balance += payout;
+                document.getElementById('result').innerHTML += ` - EVEN အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+                document.getElementById('balance').classList.add('payout-animation');
+            } else if (result % 2 !== 0 && bets["ODD"]) {
+                const payout = bets["ODD"] * 2;
+                balance += payout;
+                document.getElementById('result').innerHTML += ` - ODD အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+                document.getElementById('balance').classList.add('payout-animation');
+            } else if (result >= 1 && result <= 18 && bets["1 to 18"]) {
+                const payout = bets["1 to 18"] * 2;
+                balance += payout;
+                document.getElementById('result').innerHTML += ` - 1 to 18 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+                document.getElementById('balance').classList.add('payout-animation');
+            } else if (result >= 19 && result <= 36 && bets["19 to 36"]) {
+                const payout = bets["19 to 36"] * 2;
+                balance += payout;
+                document.getElementById('result').innerHTML += ` - 19 to 36 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+                document.getElementById('balance').classList.add('payout-animation');
+            } else if (result >= 1 && result <= 12 && bets["1st 12"]) {
+                const payout = bets["1st 12"] * 3;
+                balance += payout;
+                document.getElementById('result').innerHTML += ` - 1st 12 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+                document.getElementById('balance').classList.add('payout-animation');
+            } else if (result >= 13 && result <= 24 && bets["2nd 12"]) {
+                const payout = bets["2nd 12"] * 3;
+                balance += payout;
+                document.getElementById('result').innerHTML += ` - 2nd 12 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+                document.getElementById('balance').classList.add('payout-animation');
+            } else if (result >= 25 && result <= 36 && bets["3rd 12"]) {
+                const payout = bets["3rd 12"] * 3;
+                balance += payout;
+                document.getElementById('result').innerHTML += ` - 3rd 12 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+                document.getElementById('balance').classList.add('payout-animation');
             }
             updateBalance();
             saveGameResult(result);
@@ -352,7 +572,6 @@
             const phone = document.getElementById('phone').value;
             const pin = document.getElementById('pin').value;
             if (!phone || pin.length !== 6) return alert('ဖုန်းနံပတ် သို့မဟုတ် PIN မမှန်ပါ။');
-            const userKey = `${phone}_${pin}`;
             const storedPin = localStorage.getItem(`pin_${phone}`);
             if (storedPin && storedPin !== pin) return alert('PIN မမှန်ပါ။');
             if (!storedPin) localStorage.setItem(`pin_${phone}`, pin);
@@ -364,6 +583,7 @@
             updateBalance();
             createRouletteTable();
             createChits();
+            createWheel();
             spinRoulette();
             updateOnlinePlayers();
         }
@@ -388,6 +608,7 @@
                 updateBalance();
                 createRouletteTable();
                 createChits();
+                createWheel();
                 spinRoulette();
                 updateOnlinePlayers();
             }
