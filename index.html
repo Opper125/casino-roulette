@@ -92,12 +92,13 @@
                 <button onclick="logout()">🚪 Logout</button>
             </div>
         </div>
+        <div id="status">Game Status: <span id="game-status">Waiting for Admin...</span></div>
         <div class="game-grid" id="game-grid">
-            <div class="game-card" onclick="window.location.href='roulette.html'">
+            <div class="game-card" onclick="enterGame('roulette.html')">
                 <img src="https://via.placeholder.com/200x150?text=Roulette" alt="Roulette">
                 <h3>Roulette</h3>
             </div>
-            <div class="game-card" onclick="window.location.href='slots.html'">
+            <div class="game-card" onclick="enterGame('slots.html')">
                 <img src="https://via.placeholder.com/200x150?text=Slots" alt="Slots">
                 <h3>Slots</h3>
             </div>
@@ -114,13 +115,9 @@
         </div>
     </div>
 
-    <script src="sw.js"></script>
     <script>
         const BASE_URL = 'https://casino-opper.netlify.app';
-
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').then(() => console.log('Service Worker Registered'));
-        }
+        let userId;
 
         async function fetchData() {
             try {
@@ -135,37 +132,50 @@
 
         async function updateData(updates) {
             if (navigator.onLine) {
-                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updates)
-                });
-                const data = await response.json();
-                localStorage.setItem('offlineData', JSON.stringify(data));
-                return data;
-            } else {
-                let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
-                localData = { ...localData, ...updates };
-                localStorage.setItem('offlineData', JSON.stringify(localData));
-                return localData;
+                try {
+                    const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updates)
+                    });
+                    const data = await response.json();
+                    localStorage.setItem('offlineData', JSON.stringify(data));
+                    return data;
+                } catch (e) {
+                    console.error('Update failed:', e);
+                }
             }
+            let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
+            localData = { ...localData, ...updates };
+            localStorage.setItem('offlineData', JSON.stringify(localData));
+            return localData;
         }
 
         function maskPhoneNumber(phone) {
             return phone.slice(0, -3).replace(/[0-9]/g, '*') + phone.slice(-3);
         }
 
-        async function checkLoggedIn() {
-            const userId = localStorage.getItem('loggedInUser');
-            if (userId) {
-                const data = await fetchData();
-                if (data.users && data.users[userId]) {
-                    document.getElementById('user-phone').innerHTML = maskPhoneNumber(data.users[userId].phone);
-                    document.getElementById('user-balance').innerHTML = data.users[userId].balance || 0;
-                }
-            } else {
+        async function updateUI() {
+            const data = await fetchData();
+            userId = localStorage.getItem('loggedInUser');
+            if (!userId || !data.users || !data.users[userId]) {
                 window.location.href = 'login.html';
+                return;
             }
+            const user = data.users[userId];
+            document.getElementById('user-phone').innerHTML = maskPhoneNumber(user.phone);
+            document.getElementById('user-balance').innerHTML = user.balance || 0;
+            document.getElementById('game-status').innerHTML = data.game && data.game.adminStarted ? 'Active' : 'Waiting for Admin...';
+        }
+
+        async function checkLoggedIn() {
+            userId = localStorage.getItem('loggedInUser');
+            if (!userId) {
+                window.location.href = 'login.html';
+                return;
+            }
+            await updateUI();
+            setInterval(updateUI, 1000); // Poll every second
         }
 
         function logout() {
@@ -184,16 +194,29 @@
         async function submitWithdraw() {
             const amount = parseInt(document.getElementById('withdraw-amount').value);
             const withdrawPhone = document.getElementById('withdraw-phone').value;
-            const userId = localStorage.getItem('loggedInUser');
             const data = await fetchData();
-            if (!data.users || !data.users[userId] || amount < 100 || amount > data.users[userId].balance || !withdrawPhone) return;
+            if (!data.users[userId] || amount < 100 || amount > data.users[userId].balance || !withdrawPhone) {
+                alert('မမှန်ကန်သော တောင်းဆိုမှု!');
+                return;
+            }
             data.users[userId].balance -= amount;
             const requestId = `${userId}_${Date.now()}`;
             data.requests = data.requests || {};
             data.requests[requestId] = { userId, phone: data.users[userId].phone, amount, withdrawPhone, type: 'withdraw', status: 'pending', timestamp: Date.now() };
+            data.users[userId].transactions = data.users[userId].transactions || [];
+            data.users[userId].transactions.push({ type: 'withdraw', amount, status: 'pending', timestamp: Date.now() });
             await updateData({ users: data.users, requests: data.requests });
             closeModal('withdrawModal');
-            checkLoggedIn();
+            updateUI();
+        }
+
+        async function enterGame(gameUrl) {
+            const data = await fetchData();
+            if (!data.game || !data.game.adminStarted) {
+                alert('Admin မှ ဂိမ်းစတင်ရန် စောင့်ပါ!');
+                return;
+            }
+            window.location.href = gameUrl;
         }
 
         window.onload = () => {
