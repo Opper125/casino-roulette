@@ -3,204 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
+    <title>Admin ထိန်းချုပ်မှု</title>
     <style>
-        body { 
-            font-family: 'Poppins', sans-serif; 
-            background: linear-gradient(135deg, #1a1a1a, #2c003e); 
-            color: #ffd700; 
-            margin: 0; 
-            padding: 20px; 
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1e1e1e, #4a00e0);
+            color: #fff;
+            margin: 0;
+            padding: 0;
         }
-        .container { 
-            max-width: 900px; 
-            margin: auto; 
-            background: rgba(30, 30, 30, 0.95); 
-            padding: 20px; 
-            border-radius: 15px; 
-            box-shadow: 0 0 30px rgba(255, 215, 0, 0.6); 
-            text-align: center; 
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            text-align: center;
         }
-        h1 { 
-            text-shadow: 0 0 15px #ffd700; 
-            font-size: 2em; 
-            margin: 0; 
+        h1 {
+            color: #00ffcc;
+            text-shadow: 0 0 10px #00ffcc;
         }
-        .request { 
-            padding: 10px; 
-            margin: 5px; 
-            background: #333; 
-            border: 2px solid #ffd700; 
-            border-radius: 8px; 
-            font-size: 14px; 
+        button {
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            background: #ff4500;
+            color: white;
+            cursor: pointer;
+            margin: 5px;
+            transition: transform 0.2s;
         }
-        button { 
-            padding: 10px 20px; 
-            background: linear-gradient(45deg, #ffd700, #b8860b); 
-            color: #000; 
-            border: none; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            margin: 5px; 
-            font-weight: bold; 
+        button:hover {
+            transform: scale(1.1);
+            background: #ff6347;
         }
-        input { 
-            padding: 10px; 
-            background: #222; 
-            color: #ffd700; 
-            border: 1px solid #ffd700; 
-            border-radius: 5px; 
-            margin: 5px; 
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            background: #333;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        a {
+            color: #00ffcc;
+            text-decoration: none;
+            margin: 10px 0;
+            display: block;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎰 Admin Dashboard</h1>
-        <div id="game-status">Game Status: <span id="state">Stopped</span> | Online Players: <span id="online-players">0</span></div>
-        <button onclick="startGame()">▶️ Start Games</button>
-        <button onclick="stopGame()">⏹️ Stop Games</button>
-        <div id="deposit-control">
-            <h3>ငွေသွင်း</h3>
-            <input type="text" id="deposit-phone" placeholder="ဖုန်းနံပတ် (09xxxxxxxxx)">
-            <input type="number" id="deposit-amount" placeholder="ငွေပမာဏ (MMK)">
-            <button onclick="submitAdminDeposit()">✔️ သွင်းမည်</button>
-        </div>
-        <div id="withdraw-requests"><h3>Withdraw Requests</h3></div>
-        <button onclick="window.open('user-info.html')">👤 User Info</button>
+        <h1>Admin ထိန်းချုပ်မှု</h1>
+        <h3>ငွေသွင်း/ငွေထုတ် တောင်းဆိုမှုများ</h3>
+        <ul id="transactionList"></ul>
+        <a href="index.html">ဂိမ်းသို့ ပြန်သွားမယ်</a>
     </div>
 
     <script>
-        const BASE_URL = 'https://casino-opper.netlify.app'; // Your Netlify URL
+        function loadTransactions() {
+            const transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+            const list = document.getElementById('transactionList');
+            list.innerHTML = '';
+            transactions.forEach((t, index) => {
+                if (t.status === 'pending') {
+                    const li = document.createElement('li');
+                    li.innerText = `${t.type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'} - ${t.method} - ${t.amount} ကျပ် - ${t.timestamp} ${t.phone ? '- ဖုန်း: ' + t.phone : ''}`;
+                    const approveBtn = document.createElement('button');
+                    approveBtn.innerText = 'လက်ခံမယ်';
+                    approveBtn.onclick = () => approveTransaction(index);
+                    const rejectBtn = document.createElement('button');
+                    rejectBtn.innerText = 'ငြင်းမယ်';
+                    rejectBtn.onclick = () => rejectTransaction(index);
+                    li.appendChild(approveBtn);
+                    li.appendChild(rejectBtn);
+                    list.appendChild(li);
+                }
+            });
+        }
 
-        async function fetchData() {
-            try {
-                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
-                if (!response.ok) throw new Error('Server ချိတ်ဆက်မှု မအောင်မြင်ပါ');
-                const data = await response.json();
-                localStorage.setItem('offlineData', JSON.stringify(data));
-                return data;
-            } catch (e) {
-                console.error('Fetch failed:', e);
-                return JSON.parse(localStorage.getItem('offlineData') || '{}');
+        function approveTransaction(index) {
+            let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+            let balance = parseInt(localStorage.getItem('balance')) || 0;
+            const t = transactions[index];
+            t.status = 'approved';
+            if (t.type === 'deposit') {
+                balance += t.amount;
+            } else if (t.type === 'withdraw') {
+                balance -= t.amount;
             }
+            localStorage.setItem('balance', balance);
+            localStorage.setItem('transactions', JSON.stringify(transactions));
+            loadTransactions();
         }
 
-        async function updateData(updates) {
-            try {
-                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updates)
-                });
-                if (!response.ok) throw new Error('Server သို့ ဒေတာပို့မှု မအောင်မြင်ပါ');
-                const data = await response.json();
-                localStorage.setItem('offlineData', JSON.stringify(data));
-                return data;
-            } catch (e) {
-                console.error('Update failed:', e);
-                let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
-                localData = { ...localData, ...updates };
-                localStorage.setItem('offlineData', JSON.stringify(localData));
-                return localData;
-            }
+        function rejectTransaction(index) {
+            let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+            transactions[index].status = 'rejected';
+            localStorage.setItem('transactions', JSON.stringify(transactions));
+            loadTransactions();
         }
 
-        function maskPhoneNumber(phone) {
-            return phone.slice(0, -3).replace(/[0-9]/g, '*') + phone.slice(-3);
-        }
-
-        function manageGameServer() {
-            setInterval(async () => {
-                const data = await fetchData();
-                document.getElementById('state').innerHTML = data.game && data.game.adminStarted ? 'Active' : 'Stopped';
-
-                let onlineCount = 0;
-                Object.values(data.users || {}).forEach(user => {
-                    if (Date.now() - user.lastActive < 30000) onlineCount++; // Online if active in last 30s
-                });
-                document.getElementById('online-players').innerHTML = onlineCount;
-
-                const requests = data.requests || {};
-                const withdrawDiv = document.getElementById('withdraw-requests');
-                withdrawDiv.innerHTML = '<h3>Withdraw Requests</h3>';
-                Object.entries(requests).forEach(([id, req]) => {
-                    if (req.status === 'pending' && req.type === 'withdraw') {
-                        const div = document.createElement('div');
-                        div.className = 'request';
-                        div.innerHTML = `User: ${req.userId.substr(0, 8)}... (Phone: ${maskPhoneNumber(req.withdrawPhone)})<br>Amount: ${req.amount} MMK<br>
-                            <button onclick="approveRequest('${id}')">✅</button><button onclick="rejectRequest('${id}')">❌</button>`;
-                        withdrawDiv.appendChild(div);
-                    }
-                });
-
-                Object.keys(requests).forEach(id => {
-                    if (requests[id].status !== 'pending') delete requests[id];
-                });
-                await updateData({ requests });
-            }, 1000); // Poll every second
-        }
-
-        async function startGame() {
-            const data = await fetchData();
-            await updateData({ game: { adminStarted: true } });
-            alert('ဂိမ်းများ စတင်ပြီး');
-        }
-
-        async function stopGame() {
-            const data = await fetchData();
-            await updateData({ game: { adminStarted: false } });
-            alert('ဂိမ်းများ ရပ်တန့်ပြီး');
-        }
-
-        async function approveRequest(id) {
-            const data = await fetchData();
-            const req = data.requests[id];
-            if (!req || !data.users[req.userId]) return;
-            data.transactions[req.userId] = data.transactions[req.userId] || [];
-            const tx = data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp);
-            if (tx) tx.status = 'approved';
-            req.status = 'approved';
-            await updateData({ requests: data.requests, transactions: data.transactions });
-        }
-
-        async function rejectRequest(id) {
-            const data = await fetchData();
-            const req = data.requests[id];
-            if (!req || !data.users[req.userId]) return;
-            data.users[req.userId].balance += req.amount;
-            data.transactions[req.userId] = data.transactions[req.userId] || [];
-            const tx = data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp);
-            if (tx) tx.status = 'rejected';
-            req.status = 'rejected';
-            await updateData({ users: data.users, requests: data.requests, transactions: data.transactions });
-        }
-
-        async function submitAdminDeposit() {
-            const phone = document.getElementById('deposit-phone').value;
-            const amount = parseInt(document.getElementById('deposit-amount').value);
-            if (!phone.match(/^09\d{8,9}$/) || amount < 100) {
-                alert('ဖုန်းနံပတ် သို့မဟုတ် ငွေပမာဏ မမှန်ပါ');
-                return;
-            }
-            const data = await fetchData();
-            const userId = Object.entries(data.users || {}).find(([_, user]) => user.phone === phone)?.[0];
-            if (!userId) {
-                alert('ဒီဖုန်းနံပတ်နဲ့ အကောင့်မရှိပါ');
-                return;
-            }
-            data.users[userId].balance = (data.users[userId].balance || 0) + amount;
-            data.users[userId].transactions = data.users[userId].transactions || [];
-            data.users[userId].transactions.push({ type: 'deposit', amount, status: 'approved', timestamp: Date.now() });
-            await updateData({ users: data.users });
-            document.getElementById('deposit-phone').value = '';
-            document.getElementById('deposit-amount').value = '';
-            alert(`User ${phone} သို့ ${amount} MMK သွင်းပြီး`);
-        }
-
-        window.onload = () => {
-            manageGameServer();
-        };
+        loadTransactions();
     </script>
 </body>
 </html>
