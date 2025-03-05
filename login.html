@@ -66,28 +66,35 @@
         const BASE_URL = 'https://casino-opper.netlify.app';
 
         async function fetchData() {
-            const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
-            const data = await response.json();
-            localStorage.setItem('offlineData', JSON.stringify(data));
-            return data;
+            try {
+                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
+                const data = await response.json();
+                localStorage.setItem('offlineData', JSON.stringify(data));
+                return data;
+            } catch (e) {
+                return JSON.parse(localStorage.getItem('offlineData') || '{}');
+            }
         }
 
         async function updateData(updates) {
             if (navigator.onLine) {
-                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updates)
-                });
-                const data = await response.json();
-                localStorage.setItem('offlineData', JSON.stringify(data));
-                return data;
-            } else {
-                let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
-                localData = { ...localData, ...updates };
-                localStorage.setItem('offlineData', JSON.stringify(localData));
-                return localData;
+                try {
+                    const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updates)
+                    });
+                    const data = await response.json();
+                    localStorage.setItem('offlineData', JSON.stringify(data));
+                    return data;
+                } catch (e) {
+                    console.error('Update failed:', e);
+                }
             }
+            let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
+            localData = { ...localData, ...updates };
+            localStorage.setItem('offlineData', JSON.stringify(localData));
+            return localData;
         }
 
         async function login() {
@@ -99,25 +106,27 @@
             }
             const userId = btoa(phone + pin);
             const data = await fetchData();
-            const users = data.users || {};
-            let userData = users[userId] || { 
-                balance: 0, 
-                bets: {}, 
-                phone, 
-                pin, 
-                lastActive: Date.now(), 
-                warnings: 0, 
-                banUntil: 0, 
-                totalBet: 0, 
-                totalWinnings: 0, 
-                messages: [], 
-                transactions: [] 
-            };
-            users[userId] = userData;
+            let users = data.users || {};
+            if (!users[userId]) {
+                users[userId] = { 
+                    phone, 
+                    pin, 
+                    balance: 0, 
+                    bets: {}, 
+                    totalBet: 0, 
+                    totalWinnings: 0, 
+                    transactions: [], 
+                    messages: [], 
+                    createdAt: Date.now(), 
+                    lastActive: Date.now(), 
+                    warnings: 0, 
+                    banUntil: 0 
+                };
+            }
+            users[userId].lastActive = Date.now();
             await updateData({ users });
             localStorage.setItem('loggedInUser', userId);
             localStorage.setItem('phone', phone);
-            localStorage.setItem('pin', pin);
             window.location.href = 'index.html';
         }
     </script>
