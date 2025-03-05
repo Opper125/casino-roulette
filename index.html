@@ -93,6 +93,33 @@
             color: #ffd700;
             font-size: 1.5em;
             margin: 10px 0;
+            animation: resultFade 2s ease-out;
+        }
+        @keyframes resultFade {
+            0% { opacity: 0; transform: scale(0.5); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        #history {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .history-item {
+            padding: 10px;
+            background: #333;
+            border-radius: 5px;
+            font-size: 1.2em;
+        }
+        #total-bet, #user-bet {
+            font-size: 1.2em;
+            color: #00ffcc;
+            margin: 10px 0;
+        }
+        #online-players {
+            font-size: 1.2em;
+            color: #ffd700;
+            margin: 10px 0;
         }
         #login-container, #game-container {
             margin: 20px 0;
@@ -114,6 +141,13 @@
         button:hover {
             transform: scale(1.1);
         }
+        .payout-animation {
+            animation: payout 1s ease-out;
+        }
+        @keyframes payout {
+            0% { transform: translateY(20px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -125,12 +159,19 @@
             <button onclick="login()">အကောင့်ဝင်မယ် / ဖွင့်မယ်</button>
         </div>
         <div id="game-container" style="display: none;">
-            <div id="timer">အချိန်: 30 စက္ကန့်</div>
+            <div id="timer">အချိန်: စောင့်ဆိုင်းနေသည်...</div>
             <div id="roulette-table"></div>
             <div id="chit-container"></div>
             <div id="result"></div>
+            <div id="history"></div>
+            <p id="total-bet">အားလုံး ထိုးကြေး: 0 ကျပ်</p>
+            <p id="user-bet">သင်၏ ထိုးကြေး: 0 ကျပ်</p>
+            <p id="online-players">Online ကစားသမား: 0</p>
             <p>လက်ကျန်ငွေ: <span id="balance">0</span> ကျပ်</p>
             <button onclick="logout()">အကောင့်ထွက်မယ်</button>
+            <a href="https://casinoopper.netlify.app/user-info.html">အကောင့်သို့သွားမယ်</a>
+            <a href="https://casinoopper.netlify.app/game-list.html">ဂိမ်းမှတ်တမ်း</a>
+            <button onclick="window.location.href='https://casinoopper.netlify.app/customer-support.html'">ဆက်သွယ်ရန်</button>
         </div>
     </div>
 
@@ -139,8 +180,10 @@
         let currentUser = null;
         let currentChit = null;
         let bets = {};
-        let timeLeft = 30;
+        let timeLeft = 0;
         let gameActive = false;
+        let totalBet = 0;
+        let onlinePlayers = new Set();
 
         const chits = [
             { value: 1000, label: "💰 1k" },
@@ -162,7 +205,7 @@
                 "2", "5", "8", "11", "14", "17", "20", "23", "26", "29", "32", "35", "1",
                 "4", "7", "10", "13", "16", "19", "22", "25", "28", "31", "34"
             ];
-            numbers.forEach((num, index) => {
+            numbers.forEach((num) => {
                 const slot = document.createElement('div');
                 slot.className = 'slot';
                 slot.innerText = num;
@@ -200,35 +243,47 @@
             if (currentChit > balance) return alert('လက်ကျန်ငွေ မလုံလောက်ပါ။');
             bets[num] = (bets[num] || 0) + currentChit;
             balance -= currentChit;
+            totalBet += currentChit;
             updateBalance();
             updateTable();
+            updateBets();
         }
 
         function updateTable() {
             document.querySelectorAll('.slot').forEach(slot => {
                 const num = slot.innerText;
-                slot.innerHTML = num + (bets[num] ? `<br>💰 ${bets[num].toLocaleString()} ကျပ်` : '');
+                const allBets = Object.entries(bets).reduce((acc, [key, value]) => key === num ? acc + value : acc, 0);
+                slot.innerHTML = `${num}<br>💰 All: ${allBets.toLocaleString()} ကျပ်${bets[num] ? `<br>💰 You: ${bets[num].toLocaleString()} ကျပ်` : ''}`;
             });
         }
 
-        function spinRoulette() {
-            if (!gameActive) return;
-            timeLeft = 30;
+        async function fetchGameState() {
+            const response = await fetch('https://casinoopper.netlify.app/.netlify/functions/game');
+            const data = await response.json();
+            gameActive = data.active;
+            timeLeft = data.timeLeft;
             document.getElementById('timer').innerText = `အချိန်: ${timeLeft} စက္ကန့်`;
-            document.getElementById('result').innerText = 'လောင်းကြေး ပိတ်ပါပြီ။ စောင့်ပါ...';
-            const countdown = setInterval(() => {
-                timeLeft--;
-                document.getElementById('timer').innerText = `အချိန်: ${timeLeft} စက္ကန့်`;
-                if (timeLeft <= 0) {
-                    clearInterval(countdown);
-                    const result = localStorage.getItem('adminResult') || Math.floor(Math.random() * 37);
-                    localStorage.removeItem('adminResult');
-                    document.getElementById('result').innerText = `ရလဒ်: ${result}`;
-                    calculatePayout(result);
-                    bets = {};
-                    updateTable();
-                    setTimeout(spinRoulette, 3000);
-                }
+            if (timeLeft <= 0 && gameActive) {
+                const result = data.result || Math.floor(Math.random() * 37);
+                document.getElementById('result').innerText = `ရလဒ်: ${result}`;
+                document.getElementById('result').classList.add('result-animation');
+                calculatePayout(result);
+                addToHistory(result);
+                bets = {};
+                totalBet = 0;
+                updateTable();
+                updateBets();
+            }
+        }
+
+        function spinRoulette() {
+            if (!gameActive) {
+                document.getElementById('timer').innerText = 'အချိန်: စောင့်ဆိုင်းနေသည်...';
+                return;
+            }
+            setInterval(async () => {
+                await fetchGameState();
+                updateOnlinePlayers();
             }, 1000);
         }
 
@@ -237,6 +292,8 @@
                 const payout = bets[result] * 35;
                 balance += payout;
                 document.getElementById('result').innerText += ` - အနိုင်ရပါပြီ! ${payout.toLocaleString()} ကျပ်`;
+                document.getElementById('balance').classList.add('payout-animation');
+                setTimeout(() => document.getElementById('balance').classList.remove('payout-animation'), 1000);
             }
             updateBalance();
             saveGameResult(result);
@@ -257,6 +314,27 @@
             }
         }
 
+        function addToHistory(result) {
+            const history = document.getElementById('history');
+            const item = document.createElement('div');
+            item.className = 'history-item';
+            item.innerText = result;
+            history.insertBefore(item, history.firstChild);
+            if (history.children.length > 7) history.removeChild(history.lastChild);
+        }
+
+        function updateBets() {
+            document.getElementById('total-bet').innerText = `အားလုံး ထိုးကြေး: ${totalBet.toLocaleString()} ကျပ်`;
+            const userBet = Object.values(bets).reduce((acc, val) => acc + val, 0);
+            document.getElementById('user-bet').innerText = `သင်၏ ထိုးကြေး: ${userBet.toLocaleString()} ကျပ်`;
+        }
+
+        function updateOnlinePlayers() {
+            if (currentUser) onlinePlayers.add(currentUser.phone);
+            document.getElementById('online-players').innerText = `Online ကစားသမား: ${onlinePlayers.size}`;
+            localStorage.setItem('onlinePlayers', JSON.stringify(Array.from(onlinePlayers)));
+        }
+
         function login() {
             const phone = document.getElementById('phone').value;
             const pin = document.getElementById('pin').value;
@@ -273,11 +351,13 @@
             updateBalance();
             createRouletteTable();
             createChits();
-            gameActive = localStorage.getItem('gameActive') === 'true';
-            if (gameActive) spinRoulette();
+            spinRoulette();
+            updateOnlinePlayers();
         }
 
         function logout() {
+            onlinePlayers.delete(currentUser.phone);
+            localStorage.setItem('onlinePlayers', JSON.stringify(Array.from(onlinePlayers)));
             currentUser = null;
             localStorage.removeItem('currentUser');
             document.getElementById('login-container').style.display = 'block';
@@ -286,6 +366,7 @@
 
         window.onload = () => {
             const savedUser = JSON.parse(localStorage.getItem('currentUser'));
+            onlinePlayers = new Set(JSON.parse(localStorage.getItem('onlinePlayers')) || []);
             if (savedUser) {
                 currentUser = savedUser;
                 balance = parseInt(localStorage.getItem(`balance_${currentUser.phone}`)) || 0;
@@ -294,8 +375,8 @@
                 updateBalance();
                 createRouletteTable();
                 createChits();
-                gameActive = localStorage.getItem('gameActive') === 'true';
-                if (gameActive) spinRoulette();
+                spinRoulette();
+                updateOnlinePlayers();
             }
         };
     </script>
