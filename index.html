@@ -153,6 +153,9 @@
             0% { transform: translateY(20px); opacity: 0; }
             100% { transform: translateY(0); opacity: 1; }
         }
+        #support-menu {
+            margin: 20px 0;
+        }
     </style>
 </head>
 <body>
@@ -174,6 +177,9 @@
             <p id="online-players">Online ကစားသမား: 0 ဦး</p>
             <p>လက်ကျန်ငွေ: <span id="balance">0</span> ကျပ်</p>
             <button onclick="logout()">အကောင့်ထွက်မယ်</button>
+            <div id="support-menu">
+                <button onclick="window.location.href='https://casinoopper.netlify.app/customer-support.html'">ကစားသမား အကူအညီ</button>
+            </div>
         </div>
     </div>
 
@@ -241,7 +247,8 @@
         function placeBet(num) {
             if (!currentUser) return alert('အကောင့်ဝင်ပါ။');
             if (!currentChit) return alert('လောင်းကြေး ရွေးပါ။');
-            if (timeLeft <= 0) return alert('လောင်းကြေး ပိတ်ပါပြီ။');
+            if (!gameActive) return alert('ဂိမ်းပိတ်ထားပါသည်။');
+            if (timeLeft <= 7) return alert('လောင်းကြေး ပိတ်ပါပြီ။');
             if (currentChit > balance) return alert('လက်ကျန်ငွေ မလုံလောက်ပါ။');
             bets[num] = (bets[num] || 0) + currentChit;
             balance -= currentChit;
@@ -263,7 +270,7 @@
             const data = await response.json();
             gameActive = data.active;
             timeLeft = data.timeLeft;
-            document.getElementById('timer').innerText = `အချိန်: ${timeLeft} စက္ကန့်`;
+            document.getElementById('timer').innerText = gameActive ? `အချိန်: ${timeLeft} စက္ကန့်` : 'အချိန်: စောင့်ဆိုင်းနေသည်...';
             if (timeLeft <= 0 && gameActive) {
                 const result = data.result || Math.floor(Math.random() * 37);
                 document.getElementById('result').innerHTML = `ရလဒ်: <span>${result}</span>`;
@@ -277,10 +284,6 @@
         }
 
         function spinRoulette() {
-            if (!gameActive) {
-                document.getElementById('timer').innerText = 'အချိန်: စောင့်ဆိုင်းနေသည်...';
-                return;
-            }
             setInterval(async () => {
                 await fetchGameState();
             }, 1000);
