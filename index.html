@@ -35,6 +35,7 @@
         }
         #roulette-table {
             display: grid;
+            grid-template-rows: repeat(5, 1fr);
             grid-template-columns: repeat(13, 1fr);
             gap: 2px;
             margin: 20px auto;
@@ -265,11 +266,12 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            animation: spinBall 5s linear infinite;
+            animation: none;
         }
-        @keyframes spinBall {
-            0% { transform: translateX(-50%) rotate(0deg); }
-            100% { transform: translateX(-50%) rotate(-360deg); }
+        @keyframes spinBallSlow {
+            0% { transform: translateX(-50%) rotate(0deg) translateY(-130px) rotate(0deg); }
+            50% { transform: translateX(-50%) rotate(-720deg) translateY(-130px) rotate(720deg); }
+            100% { transform: translateX(-50%) rotate(-1440deg) translateY(-130px) rotate(1440deg); }
         }
         .wheel-number {
             position: absolute;
@@ -346,16 +348,24 @@
             const table = document.getElementById('roulette-table');
             table.innerHTML = '';
             const numbers = [
-                "00", "3", "6", "9", "12", "15", "18", "21", "24", "27", "30", "33", "36", "2to1",
-                "0", "2", "5", "8", "11", "14", "17", "20", "23", "26", "29", "32", "35", "2to1",
-                "", "1", "4", "7", "10", "13", "16", "19", "22", "25", "28", "31", "34", "2to1",
-                "", "1st 12", "1st 12", "1st 12", "2nd 12", "2nd 12", "2nd 12", "3rd 12", "3rd 12", "3rd 12", "", "", "",
-                "", "1 to 18", "EVEN", "Red", "Black", "ODD", "19 to 36", "", "", "", "", "", ""
+                "00", "0", "", "", "1 to 18", "EVEN", "Red", "Black", "ODD", "19 to 36", "", "", "",
+                "3", "2", "1", "1st 12", "", "", "", "", "", "2to1", "", "", "",
+                "6", "5", "4", "1st 12", "", "", "", "", "", "2to1", "", "", "",
+                "9", "8", "7", "1st 12", "", "", "", "", "", "2to1", "", "", "",
+                "12", "11", "10", "2nd 12", "", "", "", "", "", "2to1", "", "", "",
+                "15", "14", "13", "2nd 12", "", "", "", "", "", "2to1", "", "", "",
+                "18", "17", "16", "2nd 12", "", "", "", "", "", "2to1", "", "", "",
+                "21", "20", "19", "3rd 12", "", "", "", "", "", "2to1", "", "", "",
+                "24", "23", "22", "3rd 12", "", "", "", "", "", "2to1", "", "", "",
+                "27", "26", "25", "3rd 12", "", "", "", "", "", "2to1", "", "", "",
+                "30", "29", "28", "", "", "", "", "", "", "", "", "", "",
+                "33", "32", "31", "", "", "", "", "", "", "", "", "", "",
+                "36", "35", "34", "", "", "", "", "", "", "", "", "", ""
             ];
             numbers.forEach((num, index) => {
                 const slot = document.createElement('div');
                 slot.className = 'slot';
-                if (index % 14 >= 1 && index % 14 <= 12 && num !== "") {
+                if (index % 13 <= 2 && num !== "") {
                     slot.className += (["3", "9", "12", "18", "21", "27", "30", "36", "5", "14", "23", "32", "1", "7", "16", "19", "25", "34"].includes(num) ? ' red' : ' black');
                 } else if (["00", "0"].includes(num)) {
                     slot.className += ' green';
@@ -406,7 +416,7 @@
             if (!currentChit) return alert('လောင်းကြေး ရွေးပါ။');
             if (!gameActive) return alert('ဂိမ်းပိတ်ထားပါသည်။');
             if (timeLeft <= 7) return alert('လောင်းကြေး ပိတ်ပါပြီ။');
-            if (currentChit > balance) return alert('လက်�ကျန်ငွေ မလုံလောက်ပါ။');
+            if (currentChit > balance) return alert('လက်ကျန်ငွေ မလုံလောက်ပါ။');
             bets[num] = (bets[num] || 0) + currentChit;
             balance -= currentChit;
             updateBalance();
@@ -447,16 +457,20 @@
                 bets = {};
                 updateTable();
                 updateTotalBet();
+            } else if (timeLeft <= 7 && timeLeft > 0) {
+                document.getElementById('roulette-table').style.display = 'none';
+                document.getElementById('spin-wheel-container').style.display = 'block';
             } else if (timeLeft <= 0) {
                 document.getElementById('roulette-table').style.display = 'none';
                 document.getElementById('spin-wheel-container').style.display = 'block';
                 const result = adminResult || Math.floor(Math.random() * 37);
                 const angle = (wheelNumbers.indexOf(result.toString()) * 360) / wheelNumbers.length;
-                document.getElementById('wheel-ball').style.animation = `spinBall 5s linear forwards`;
+                document.getElementById('wheel-ball').style.animation = `spinBallSlow 7s ease-out forwards`;
                 setTimeout(() => {
                     document.getElementById('result').innerHTML = `ရလဒ်: <span>${result}</span>`;
                     calculatePayout(result);
                     addHistory(result);
+                    localStorage.setItem('allBets', '{}');
                     bets = {};
                     updateTable();
                     updateTotalBet();
@@ -464,7 +478,10 @@
                         document.getElementById('spin-wheel-container').style.display = 'none';
                         document.getElementById('roulette-table').style.display = 'grid';
                     }, 5000);
-                }, 5000);
+                }, 7000);
+            } else {
+                document.getElementById('spin-wheel-container').style.display = 'none';
+                document.getElementById('roulette-table').style.display = 'grid';
             }
             updateOnlinePlayers();
         }
@@ -476,47 +493,59 @@
         }
 
         function calculatePayout(result) {
+            let totalPayout = 0;
             if (bets[result]) {
                 const payout = bets[result] * 35;
-                balance += payout;
-                document.getElementById('result').innerHTML += ` - အနိုင်ရပါပြီ! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
-                document.getElementById('balance').classList.add('payout-animation');
-            } else if (result % 2 === 0 && bets["EVEN"]) {
-                const payout = bets["EVEN"] * 2;
-                balance += payout;
-                document.getElementById('result').innerHTML += ` - EVEN အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
-                document.getElementById('balance').classList.add('payout-animation');
-            } else if (result % 2 !== 0 && bets["ODD"]) {
-                const payout = bets["ODD"] * 2;
-                balance += payout;
-                document.getElementById('result').innerHTML += ` - ODD အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
-                document.getElementById('balance').classList.add('payout-animation');
-            } else if (result >= 1 && result <= 18 && bets["1 to 18"]) {
-                const payout = bets["1 to 18"] * 2;
-                balance += payout;
-                document.getElementById('result').innerHTML += ` - 1 to 18 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
-                document.getElementById('balance').classList.add('payout-animation');
-            } else if (result >= 19 && result <= 36 && bets["19 to 36"]) {
-                const payout = bets["19 to 36"] * 2;
-                balance += payout;
-                document.getElementById('result').innerHTML += ` - 19 to 36 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
-                document.getElementById('balance').classList.add('payout-animation');
-            } else if (result >= 1 && result <= 12 && bets["1st 12"]) {
-                const payout = bets["1st 12"] * 3;
-                balance += payout;
-                document.getElementById('result').innerHTML += ` - 1st 12 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
-                document.getElementById('balance').classList.add('payout-animation');
-            } else if (result >= 13 && result <= 24 && bets["2nd 12"]) {
-                const payout = bets["2nd 12"] * 3;
-                balance += payout;
-                document.getElementById('result').innerHTML += ` - 2nd 12 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
-                document.getElementById('balance').classList.add('payout-animation');
-            } else if (result >= 25 && result <= 36 && bets["3rd 12"]) {
-                const payout = bets["3rd 12"] * 3;
-                balance += payout;
-                document.getElementById('result').innerHTML += ` - 3rd 12 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
-                document.getElementById('balance').classList.add('payout-animation');
+                totalPayout += payout;
+                document.getElementById('result').innerHTML += ` - နံပတ် ${result} အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
             }
+            if (result % 2 === 0 && bets["EVEN"]) {
+                const payout = bets["EVEN"] * 2;
+                totalPayout += payout;
+                document.getElementById('result').innerHTML += ` - EVEN အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+            }
+            if (result % 2 !== 0 && bets["ODD"]) {
+                const payout = bets["ODD"] * 2;
+                totalPayout += payout;
+                document.getElementById('result').innerHTML += ` - ODD အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+            }
+            if (result >= 1 && result <= 18 && bets["1 to 18"]) {
+                const payout = bets["1 to 18"] * 2;
+                totalPayout += payout;
+                document.getElementById('result').innerHTML += ` - 1 to 18 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+            }
+            if (result >= 19 && result <= 36 && bets["19 to 36"]) {
+                const payout = bets["19 to 36"] * 2;
+                totalPayout += payout;
+                document.getElementById('result').innerHTML += ` - 19 to 36 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+            }
+            if (result >= 1 && result <= 12 && bets["1st 12"]) {
+                const payout = bets["1st 12"] * 3;
+                totalPayout += payout;
+                document.getElementById('result').innerHTML += ` - 1st 12 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+            }
+            if (result >= 13 && result <= 24 && bets["2nd 12"]) {
+                const payout = bets["2nd 12"] * 3;
+                totalPayout += payout;
+                document.getElementById('result').innerHTML += ` - 2nd 12 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+            }
+            if (result >= 25 && result <= 36 && bets["3rd 12"]) {
+                const payout = bets["3rd 12"] * 3;
+                totalPayout += payout;
+                document.getElementById('result').innerHTML += ` - 3rd 12 အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+            }
+            if (["3", "9", "12", "18", "21", "27", "30", "36", "5", "14", "23", "32", "1", "7", "16", "19", "25", "34"].includes(result.toString()) && bets["Red"]) {
+                const payout = bets["Red"] * 2;
+                totalPayout += payout;
+                document.getElementById('result').innerHTML += ` - အနီရောင် အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+            }
+            if (!["3", "9", "12", "18", "21", "27", "30", "36", "5", "14", "23", "32", "1", "7", "16", "19", "25", "34"].includes(result.toString()) && result != "0" && bets["Black"]) {
+                const payout = bets["Black"] * 2;
+                totalPayout += payout;
+                document.getElementById('result').innerHTML += ` - အမည်းရောင် အနိုင်! <span class="payout-animation">${payout.toLocaleString()} ကျပ်</span>`;
+            }
+            balance += totalPayout;
+            if (totalPayout > 0) document.getElementById('balance').classList.add('payout-animation');
             updateBalance();
             saveGameResult(result);
         }
