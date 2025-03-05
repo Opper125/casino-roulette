@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin ထိန်းချုပ်မှု</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1a1a1a, #2e0047);
+            color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+            text-align: center;
+        }
+        h1, h3 {
+            color: #ffd700;
+            text-shadow: 0 0 15px #ffd700;
+        }
+        button {
+            padding: 12px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            background: #ff4500;
+            color: white;
+            cursor: pointer;
+            margin: 5px;
+            transition: transform 0.2s, background 0.3s;
+        }
+        button:hover {
+            transform: scale(1.1);
+            background: #ff6347;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            background: #333;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            color: #00ffcc;
+        }
+        a {
+            color: #ffd700;
+            text-decoration: none;
+            margin: 10px 0;
+            display: block;
+            transition: color 0.3s;
+        }
+        a:hover {
+            color: #ff4500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Admin ထိန်းချုပ်မှု</h1>
+        <h3>ငွေသွင်း/ငွေထုတ် တောင်းဆိုမှုများ</h3>
+        <ul id="transactionList"></ul>
+        <a href="/index.html">ဂိမ်းသို့ ပြန်သွားမယ်</a>
+    </div>
+
+    <script>
+        function loadTransactions() {
+            const transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+            const list = document.getElementById('transactionList');
+            list.innerHTML = '';
+            transactions.forEach((t, index) => {
+                if (t.status === 'pending') {
+                    const li = document.createElement('li');
+                    li.innerText = `${t.type === 'deposit' ? 'ငွေသွင်း' : 'ငွေထုတ်'} - ${t.method} - ${t.amount} ကျပ် - ${t.timestamp} ${t.phone ? '- ဖုန်း: ' + t.phone : ''}`;
+                    const approveBtn = document.createElement('button');
+                    approveBtn.innerText = 'လက်ခံမယ်';
+                    approveBtn.onclick = () => approveTransaction(index);
+                    const rejectBtn = document.createElement('button');
+                    rejectBtn.innerText = 'ငြင်းမယ်';
+                    rejectBtn.onclick = () => rejectTransaction(index);
+                    li.appendChild(approveBtn);
+                    li.appendChild(rejectBtn);
+                    list.appendChild(li);
+                }
+            });
+        }
+
+        function approveTransaction(index) {
+            let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+            let balance = parseInt(localStorage.getItem('balance')) || 0;
+            const t = transactions[index];
+            t.status = 'approved';
+            if (t.type === 'deposit') {
+                balance += t.amount;
+            } else if (t.type === 'withdraw') {
+                balance -= t.amount;
+            }
+            localStorage.setItem('balance', balance);
+            localStorage.setItem('transactions', JSON.stringify(transactions));
+            loadTransactions();
+        }
+
+        function rejectTransaction(index) {
+            let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+            transactions[index].status = 'rejected';
+            localStorage.setItem('transactions', JSON.stringify(transactions));
+            loadTransactions();
+        }
+
+        loadTransactions();
+    </script>
+</body>
+</html>
