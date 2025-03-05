@@ -7,17 +7,17 @@
     <style>
         body {
             font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #1a1a1a, #2e0047);
+            background: linear-gradient(135deg, #2e0047, #1a1a1a);
             color: #fff;
             margin: 0;
             padding: 0;
             overflow-x: hidden;
         }
         .container {
-            max-width: 900px;
+            max-width: 1000px;
             margin: 20px auto;
             padding: 20px;
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(0, 0, 0, 0.9);
             border-radius: 15px;
             box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
             text-align: center;
@@ -33,60 +33,53 @@
             50% { text-shadow: 0 0 20px #ffd700; }
             100% { text-shadow: 0 0 5px #ffd700; }
         }
-        #roulette-wheel {
-            width: 300px;
-            height: 300px;
+        #roulette-table {
+            display: grid;
+            grid-template-columns: repeat(13, 1fr);
+            gap: 2px;
             margin: 20px auto;
-            background: url('https://files.fm/u/4dawnqt5ts') no-repeat center;
-            background-size: cover;
-            position: relative;
-            border-radius: 50%;
-            box-shadow: 0 0 20px rgba(255, 0, 0, 0.7);
-            transition: transform 5s ease-out;
+            width: 90%;
+            background: #333;
+            padding: 10px;
+            border-radius: 10px;
+            border: 2px solid #ffd700;
         }
-        #ball {
-            width: 20px;
-            height: 20px;
-            background: #fff;
-            border-radius: 50%;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            animation: spinBall 5s ease-out;
+        .slot {
+            padding: 15px;
+            text-align: center;
+            font-size: 1.2em;
+            cursor: pointer;
+            background: #444;
+            border-radius: 5px;
+            transition: background 0.3s;
         }
-        @keyframes spinBall {
-            0% { transform: translate(-50%, -50%) rotate(0deg) translateY(-130px); }
-            100% { transform: translate(-50%, -50%) rotate(3600deg) translateY(-130px); }
+        .slot:hover {
+            background: #666;
         }
-        .bet-container {
+        .red { background: #ff4500; }
+        .black { background: #1a1a1a; }
+        .green { background: #00ff00; }
+        #chit-container {
             display: flex;
             justify-content: center;
-            gap: 15px;
+            gap: 10px;
             margin: 20px 0;
         }
-        input, button {
-            padding: 12px;
-            font-size: 16px;
-            border: none;
-            border-radius: 8px;
-            background: #333;
-            color: #fff;
-        }
-        input {
-            width: 120px;
-        }
-        button {
-            background: #ff4500;
+        .chit {
+            padding: 10px 20px;
+            background: #ffd700;
+            color: #000;
+            border-radius: 10px;
             cursor: pointer;
-            transition: transform 0.2s, background 0.3s;
+            font-size: 1.2em;
+            transition: transform 0.2s;
         }
-        button:hover {
+        .chit:hover {
             transform: scale(1.1);
-            background: #ff6347;
         }
+        .selected { border: 3px solid #ff4500; }
         #timer {
-            font-size: 1.8em;
+            font-size: 2em;
             color: #00ff00;
             margin: 15px 0;
             animation: pulse 1s infinite;
@@ -101,116 +94,210 @@
             font-size: 1.5em;
             margin: 10px 0;
         }
-        a {
-            color: #ffd700;
-            text-decoration: none;
-            margin: 0 15px;
-            font-size: 1.2em;
-            transition: color 0.3s;
-        }
-        a:hover {
-            color: #ff4500;
-        }
-        .payout-info {
+        #login-container, #game-container {
             margin: 20px 0;
-            font-size: 1.1em;
-            color: #00ffcc;
+        }
+        input, button {
+            padding: 12px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            margin: 10px;
+            background: #333;
+            color: #fff;
+        }
+        button {
+            background: #ff4500;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.1);
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>ရိုးလက် ကာစီနို ဂိမ်း</h1>
-        <div id="roulette-wheel">
-            <div id="ball"></div>
+        <div id="login-container">
+            <input type="text" id="phone" placeholder="ဖုန်းနံပတ်">
+            <input type="password" id="pin" placeholder="6 လုံး PIN" maxlength="6">
+            <button onclick="login()">အကောင့်ဝင်မယ် / ဖွင့်မယ်</button>
         </div>
-        <div id="timer">အချိန်: 30 စက္ကန့်</div>
-        <div class="bet-container">
-            <input type="number" id="betAmount" placeholder="လောင်းကြေး">
-            <input type="number" id="betNumber" placeholder="ဂဏန်း (0-36)">
-            <button onclick="placeBet()">လောင်းမယ်</button>
+        <div id="game-container" style="display: none;">
+            <div id="timer">အချိန်: 30 စက္ကန့်</div>
+            <div id="roulette-table"></div>
+            <div id="chit-container"></div>
+            <div id="result"></div>
+            <p>လက်ကျန်ငွေ: <span id="balance">0</span> ကျပ်</p>
+            <button onclick="logout()">အကောင့်ထွက်မယ်</button>
         </div>
-        <div id="result"></div>
-        <p>လက်ကျန်ငွေ: <span id="balance">0</span> ကျပ်</p>
-        <div class="payout-info">
-            အလျော်စားနှုန်း: ဂဏန်း ၁ လုံး မှန်ရင် 35:1
-        </div>
-        <a href="/user-info.html">အကောင့်သို့သွားမယ်</a> | 
-        <a href="/game-list.html">ဂိမ်းမှတ်တမ်း</a> | 
-        <a href="/admin.html">Admin</a>
     </div>
 
     <script>
-        let balance = parseInt(localStorage.getItem('balance')) || 0;
-        let gameHistory = JSON.parse(localStorage.getItem('gameHistory')) || [];
-        let currentBet = null;
+        let balance = 0;
+        let currentUser = null;
+        let currentChit = null;
+        let bets = {};
         let timeLeft = 30;
+        let gameActive = false;
 
-        document.getElementById('balance').innerText = balance;
+        const chits = [
+            { value: 1000, label: "💰 1k" },
+            { value: 5000, label: "💰 5k" },
+            { value: 10000, label: "💰 10k" },
+            { value: 50000, label: "💰 50k" },
+            { value: 100000, label: "💰 100k" },
+            { value: 500000, label: "💰 500k" },
+            { value: 1000000, label: "💰 1M" },
+            { value: 5000000, label: "💰 5M" },
+            { value: 10000000, label: "💰 10M" }
+        ];
+
+        function createRouletteTable() {
+            const table = document.getElementById('roulette-table');
+            table.innerHTML = '';
+            const numbers = [
+                "0", "3", "6", "9", "12", "15", "18", "21", "24", "27", "30", "33", "36",
+                "2", "5", "8", "11", "14", "17", "20", "23", "26", "29", "32", "35", "1",
+                "4", "7", "10", "13", "16", "19", "22", "25", "28", "31", "34"
+            ];
+            numbers.forEach((num, index) => {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                slot.innerText = num;
+                if (num === "0") slot.classList.add('green');
+                else if (["3", "9", "12", "18", "21", "27", "30", "36", "5", "14", "23", "32", "1", "7", "16", "19", "25", "34"].includes(num)) slot.classList.add('red');
+                else slot.classList.add('black');
+                slot.onclick = () => placeBet(num);
+                table.appendChild(slot);
+            });
+        }
+
+        function createChits() {
+            const container = document.getElementById('chit-container');
+            container.innerHTML = '';
+            chits.forEach(chit => {
+                const div = document.createElement('div');
+                div.className = 'chit';
+                div.innerText = chit.label;
+                div.onclick = () => selectChit(chit.value);
+                container.appendChild(div);
+            });
+        }
+
+        function selectChit(value) {
+            currentChit = value;
+            document.querySelectorAll('.chit').forEach(chit => chit.classList.remove('selected'));
+            const selectedChit = Array.from(document.querySelectorAll('.chit')).find(chit => chit.innerText === chits.find(c => c.value === value).label);
+            selectedChit.classList.add('selected');
+        }
+
+        function placeBet(num) {
+            if (!currentUser) return alert('အကောင့်ဝင်ပါ။');
+            if (!currentChit) return alert('လောင်းကြေး ရွေးပါ။');
+            if (timeLeft <= 0) return alert('လောင်းကြေး ပိတ်ပါပြီ။');
+            if (currentChit > balance) return alert('လက်ကျန်ငွေ မလုံလောက်ပါ။');
+            bets[num] = (bets[num] || 0) + currentChit;
+            balance -= currentChit;
+            updateBalance();
+            updateTable();
+        }
+
+        function updateTable() {
+            document.querySelectorAll('.slot').forEach(slot => {
+                const num = slot.innerText;
+                slot.innerHTML = num + (bets[num] ? `<br>💰 ${bets[num].toLocaleString()} ကျပ်` : '');
+            });
+        }
 
         function spinRoulette() {
+            if (!gameActive) return;
             timeLeft = 30;
             document.getElementById('timer').innerText = `အချိန်: ${timeLeft} စက္ကန့်`;
             document.getElementById('result').innerText = 'လောင်းကြေး ပိတ်ပါပြီ။ စောင့်ပါ...';
-            const wheel = document.getElementById('roulette-wheel');
-            const ball = document.getElementById('ball');
-            wheel.style.transform = `rotate(${Math.random() * 3600}deg)`;
-            ball.style.animation = 'spinBall 5s ease-out';
             const countdown = setInterval(() => {
                 timeLeft--;
                 document.getElementById('timer').innerText = `အချိန်: ${timeLeft} စက္ကန့်`;
                 if (timeLeft <= 0) {
                     clearInterval(countdown);
-                    const result = Math.floor(Math.random() * 37);
+                    const result = localStorage.getItem('adminResult') || Math.floor(Math.random() * 37);
+                    localStorage.removeItem('adminResult');
                     document.getElementById('result').innerText = `ရလဒ်: ${result}`;
-                    checkBet(result);
-                    saveGameResult(result);
-                    ball.style.animation = 'none';
+                    calculatePayout(result);
+                    bets = {};
+                    updateTable();
                     setTimeout(spinRoulette, 3000);
                 }
             }, 1000);
         }
 
-        function placeBet() {
-            const betAmount = parseInt(document.getElementById('betAmount').value);
-            const betNumber = parseInt(document.getElementById('betNumber').value);
-            if (timeLeft <= 0) {
-                alert('လောင်းကြေး ပိတ်ပါပြီ။ နောက်ပွဲကို စောင့်ပါ။');
-                return;
-            }
-            if (betAmount > balance || betAmount <= 0 || betNumber < 0 || betNumber > 36) {
-                alert('လောင်းကြေး သို့မဟုတ် ဂဏန်း မမှန်ပါ။');
-                return;
-            }
-            currentBet = { amount: betAmount, number: betNumber };
-            balance -= betAmount;
-            updateBalance();
-            document.getElementById('result').innerText = 'လောင်းကြေး ထည့်ပြီးပါပြီ။';
-        }
-
-        function checkBet(result) {
-            if (currentBet && currentBet.number === result) {
-                const payout = currentBet.amount * 35; // 35:1 Payout
+        function calculatePayout(result) {
+            if (bets[result]) {
+                const payout = bets[result] * 35;
                 balance += payout;
-                document.getElementById('result').innerText = `အနိုင်ရပါပြီ! ${payout} ကျပ် ရရှိမယ်`;
-            } else {
-                document.getElementById('result').innerText = 'အရှုံးပါ။ ထပ်ကြိုးစားပါ။';
+                document.getElementById('result').innerText += ` - အနိုင်ရပါပြီ! ${payout.toLocaleString()} ကျပ်`;
             }
-            currentBet = null;
             updateBalance();
+            saveGameResult(result);
         }
 
         function updateBalance() {
-            localStorage.setItem('balance', balance);
-            document.getElementById('balance').innerText = balance;
+            if (currentUser) {
+                localStorage.setItem(`balance_${currentUser.phone}`, balance);
+                document.getElementById('balance').innerText = balance.toLocaleString();
+            }
         }
 
         function saveGameResult(result) {
-            gameHistory.push({ result, timestamp: new Date().toLocaleString() });
-            localStorage.setItem('gameHistory', JSON.stringify(gameHistory));
+            if (currentUser) {
+                let history = JSON.parse(localStorage.getItem(`gameHistory_${currentUser.phone}`)) || [];
+                history.push({ result, timestamp: new Date().toLocaleString() });
+                localStorage.setItem(`gameHistory_${currentUser.phone}`, JSON.stringify(history));
+            }
         }
 
-        spinRoulette();
+        function login() {
+            const phone = document.getElementById('phone').value;
+            const pin = document.getElementById('pin').value;
+            if (!phone || pin.length !== 6) return alert('ဖုန်းနံပတ် သို့မဟုတ် PIN မမှန်ပါ။');
+            const userKey = `${phone}_${pin}`;
+            const storedPin = localStorage.getItem(`pin_${phone}`);
+            if (storedPin && storedPin !== pin) return alert('PIN မမှန်ပါ။');
+            if (!storedPin) localStorage.setItem(`pin_${phone}`, pin);
+            currentUser = { phone, pin };
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            balance = parseInt(localStorage.getItem(`balance_${phone}`)) || 0;
+            document.getElementById('login-container').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+            updateBalance();
+            createRouletteTable();
+            createChits();
+            gameActive = localStorage.getItem('gameActive') === 'true';
+            if (gameActive) spinRoulette();
+        }
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('currentUser');
+            document.getElementById('login-container').style.display = 'block';
+            document.getElementById('game-container').style.display = 'none';
+        }
+
+        window.onload = () => {
+            const savedUser = JSON.parse(localStorage.getItem('currentUser'));
+            if (savedUser) {
+                currentUser = savedUser;
+                balance = parseInt(localStorage.getItem(`balance_${currentUser.phone}`)) || 0;
+                document.getElementById('login-container').style.display = 'none';
+                document.getElementById('game-container').style.display = 'block';
+                updateBalance();
+                createRouletteTable();
+                createChits();
+                gameActive = localStorage.getItem('gameActive') === 'true';
+                if (gameActive) spinRoulette();
+            }
+        };
     </script>
 </body>
 </html>
