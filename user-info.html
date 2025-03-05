@@ -63,15 +63,17 @@
     </div>
 
     <script>
-        const BASE_URL = 'https://casino-opper.netlify.app';
+        const BASE_URL = 'https://casino-opper.netlify.app'; // Your Netlify URL
 
         async function fetchData() {
             try {
                 const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
+                if (!response.ok) throw new Error('Server ချိတ်ဆက်မှု မအောင်မြင်ပါ');
                 const data = await response.json();
                 localStorage.setItem('offlineData', JSON.stringify(data));
                 return data;
             } catch (e) {
+                console.error('Fetch failed:', e);
                 return JSON.parse(localStorage.getItem('offlineData') || '{}');
             }
         }
