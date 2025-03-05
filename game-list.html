@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ဂိမ်းမှတ်တမ်း</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1e1e1e, #4a00e0);
+            color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            text-align: center;
+        }
+        h1 {
+            color: #00ffcc;
+            text-shadow: 0 0 10px #00ffcc;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            background: #333;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        a {
+            color: #00ffcc;
+            text-decoration: none;
+            margin: 10px 0;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ဂိမ်းမှတ်တမ်း</h1>
+        <ul id="gameHistory"></ul>
+        <a href="index.html">ဂိမ်းသို့ ပြန်သွားမယ်</a>
+    </div>
+
+    <script>
+        const gameHistory = JSON.parse(localStorage.getItem('gameHistory')) || [];
+        const historyList = document.getElementById('gameHistory');
+        gameHistory.forEach(game => {
+            const li = document.createElement('li');
+            li.innerText = `ရလဒ်: ${game.result} - အချိန်: ${game.timestamp}`;
+            historyList.appendChild(li);
+        });
+    </script>
+</body>
+</html>
