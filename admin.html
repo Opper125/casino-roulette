@@ -20,13 +20,11 @@
             border-radius: 15px; 
             box-shadow: 0 0 30px rgba(255, 215, 0, 0.6); 
             text-align: center; 
-            animation: fadeIn 0.5s ease-in-out; 
         }
         h1 { 
             text-shadow: 0 0 15px #ffd700; 
             font-size: 2em; 
             margin: 0; 
-            animation: glow 2s infinite alternate; 
         }
         .request { 
             padding: 10px; 
@@ -45,53 +43,15 @@
             cursor: pointer; 
             margin: 5px; 
             font-weight: bold; 
-            transition: transform 0.2s; 
         }
-        button:hover { transform: scale(1.05); }
-        .support-section { 
-            margin-top: 20px; 
-            background: #333; 
-            padding: 15px; 
-            border-radius: 10px; 
-        }
-        select, input { 
+        input { 
             padding: 10px; 
             background: #222; 
             color: #ffd700; 
             border: 1px solid #ffd700; 
             border-radius: 5px; 
-            font-size: 14px; 
             margin: 5px; 
         }
-        .support-user { 
-            cursor: pointer; 
-            padding: 10px; 
-            background: #444; 
-            margin: 5px; 
-            border-radius: 5px; 
-            font-size: 14px; 
-            transition: background 0.2s; 
-        }
-        .support-user:hover { background: #666; }
-        .chat-log { 
-            max-height: 200px; 
-            overflow-y: auto; 
-            margin-top: 10px; 
-            font-size: 14px; 
-            background: #444; 
-            padding: 10px; 
-            border-radius: 5px; 
-        }
-        .chat-message { 
-            background: #555; 
-            padding: 5px; 
-            margin: 5px 0; 
-            border-radius: 5px; 
-            text-align: left; 
-        }
-        .chat-message.admin { background: #666; text-align: right; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes glow { from { text-shadow: 0 0 10px #ffd700; } to { text-shadow: 0 0 20px #ffd700; } }
     </style>
 </head>
 <body>
@@ -99,17 +59,8 @@
         <h1>🎰 Admin Dashboard</h1>
         <div id="game-status">Game Status: <span id="state">Betting</span> | Time Left: <span id="timeLeft">30s</span></div>
         <div id="online-players">Online Players: 0</div>
-        <div id="next-result">Next Spin Result: <span id="next-result-number">N/A</span></div>
         <button onclick="startGame()">▶️ Start</button>
         <button onclick="stopGame()">⏹️ Stop</button>
-        <div id="result-control">
-            <h3>ကျပန်းရလဒ်</h3>
-            <select id="result-number">
-                <option value="">ကျပန်း</option>
-                ${Array.from({ length: 37 }, (_, i) => `<option value="${i}">${i}</option>`).join('')}
-            </select>
-            <button onclick="setResult()">✔️ အတည်</button>
-        </div>
         <div id="deposit-control">
             <h3>ငွေသွင်း</h3>
             <input type="text" id="deposit-phone" placeholder="ဖုန်းနံပတ် (09xxxxxxxxx)">
@@ -117,28 +68,11 @@
             <button onclick="submitAdminDeposit()">✔️ သွင်းမည်</button>
         </div>
         <div id="withdraw-requests"><h3>Withdraw Requests</h3></div>
-        <div id="support-users">
-            <h3>Customer Support</h3>
-            <div id="user-list"></div>
-            <div id="support-chat" style="display: none;">
-                <h4>Chat with <span id="chat-user-id"></span></h4>
-                <div class="chat-log" id="admin-chat-log"></div>
-                <textarea id="admin-support-input" placeholder="စာပြန်ရေးပါ..."></textarea>
-                <button onclick="sendAdminSupportMessage()">📩 ပို့မည်</button>
-            </div>
-        </div>
         <button onclick="window.open('user-info.html')">👤 User Info</button>
-        <button onclick="resetServer()">🔄 Reset</button>
     </div>
 
-    <script src="sw.js"></script>
     <script>
         const BASE_URL = 'https://casino-opper.netlify.app';
-        let selectedUserId = null;
-
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').then(() => console.log('Service Worker Registered'));
-        }
 
         async function fetchData() {
             try {
@@ -152,14 +86,28 @@
         }
 
         async function updateData(updates) {
-            const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates)
-            });
-            const data = await response.json();
-            localStorage.setItem('offlineData', JSON.stringify(data));
-            return data;
+            if (navigator.onLine) {
+                try {
+                    const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updates)
+                    });
+                    const data = await response.json();
+                    localStorage.setItem('offlineData', JSON.stringify(data));
+                    return data;
+                } catch (e) {
+                    console.error('Update failed:', e);
+                }
+            }
+            let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
+            localData = { ...localData, ...updates };
+            localStorage.setItem('offlineData', JSON.stringify(localData));
+            return localData;
+        }
+
+        function maskPhoneNumber(phone) {
+            return phone.slice(0, -3).replace(/[0-9]/g, '*') + phone.slice(-3);
         }
 
         function manageGameServer() {
@@ -167,8 +115,12 @@
                 const data = await fetchData();
                 document.getElementById('state').innerHTML = data.game.state;
                 document.getElementById('timeLeft').innerHTML = `${data.game.timeLeft}s`;
-                document.getElementById('online-players').innerHTML = `Online Players: ${Object.keys(data.users || {}).length}`;
-                document.getElementById('next-result-number').innerHTML = data.game.nextResult !== null ? data.game.nextResult : 'N/A';
+
+                let onlineCount = 0;
+                Object.values(data.users || {}).forEach(user => {
+                    if (Date.now() - user.lastActive < 30000) onlineCount++;
+                });
+                document.getElementById('online-players').innerHTML = `Online Players: ${onlineCount}`;
 
                 const requests = data.requests || {};
                 const withdrawDiv = document.getElementById('withdraw-requests');
@@ -178,7 +130,7 @@
                         const div = document.createElement('div');
                         div.className = 'request';
                         div.innerHTML = `User: ${req.userId.substr(0, 8)}... (Phone: ${maskPhoneNumber(req.withdrawPhone)})<br>Amount: ${req.amount} MMK<br>
-                            <button onclick="approveRequest('${id}', 'withdraw')">✅</button><button onclick="rejectRequest('${id}')">❌</button>`;
+                            <button onclick="approveRequest('${id}')">✅</button><button onclick="rejectRequest('${id}')">❌</button>`;
                         withdrawDiv.appendChild(div);
                     }
                 });
@@ -187,23 +139,7 @@
                     if (requests[id].status !== 'pending') delete requests[id];
                 });
                 await updateData({ requests });
-
-                const userList = document.getElementById('user-list');
-                userList.innerHTML = '';
-                Object.entries(data.users || {}).forEach(([id, user]) => {
-                    const div = document.createElement('div');
-                    div.className = 'support-user';
-                    div.innerHTML = `User: ${id.substr(0, 8)}... (Phone: ${maskPhoneNumber(user.phone)}) | Balance: ${user.balance || 0} MMK
-                        <input type="number" id="withdraw-${id}" placeholder="ငွေပမာဏ (MMK)" style="width: 100px;">
-                        <button onclick="submitAdminWithdraw('${id}')">🏦 ထုတ်မည်</button>`;
-                    div.onclick = (e) => { if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') openSupportChat(id); };
-                    userList.appendChild(div);
-                });
-            }, 1000); // Poll every second
-        }
-
-        function maskPhoneNumber(phone) {
-            return phone.slice(0, -3).replace(/[0-9]/g, '*') + phone.slice(-3);
+            }, 1000);
         }
 
         async function startGame() {
@@ -214,58 +150,27 @@
 
         async function stopGame() {
             const data = await fetchData();
-            await updateData({ game: { ...data.game, adminStarted: false, state: 'betting', timeLeft: 30, result: null, nextResult: null } });
+            await updateData({ game: { state: 'betting', timeLeft: 30, onlinePlayers: 0, result: null, adminStarted: false, nextResult: null } });
             alert('ဂိမ်းရပ်တန့်ပြီး');
         }
 
-        async function approveRequest(id, type) {
+        async function approveRequest(id) {
             const data = await fetchData();
             const req = data.requests[id];
             if (!req || !data.users[req.userId]) return;
-            if (type === 'withdraw') {
-                if (!data.transactions[req.userId]) data.transactions[req.userId] = [];
-                data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'approved';
-                data.users[req.userId].messages.push({ from: 'admin', text: `ငွေထုတ် ${req.amount} MMK အတည်`, timestamp: Date.now() });
-            }
+            data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'approved';
             req.status = 'approved';
-            await updateData(data);
+            await updateData({ requests: data.requests, transactions: data.transactions });
         }
 
         async function rejectRequest(id) {
             const data = await fetchData();
             const req = data.requests[id];
             if (!req || !data.users[req.userId]) return;
-            if (req.type === 'withdraw') {
-                data.users[req.userId].balance += req.amount;
-                if (!data.transactions[req.userId]) data.transactions[req.userId] = [];
-                data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'rejected';
-                data.users[req.userId].messages.push({ from: 'admin', text: `ငွေထုတ် ${req.amount} MMK ငြင်းပယ်`, timestamp: Date.now() });
-            }
+            data.users[req.userId].balance += req.amount;
+            data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'rejected';
             req.status = 'rejected';
-            await updateData(data);
-        }
-
-        async function setResult() {
-            const result = parseInt(document.getElementById('result-number').value);
-            if (isNaN(result)) return;
-            const data = await fetchData();
-            if (!data.game.adminStarted) {
-                alert('ဂိမ်းကို အရင်စတင်ပါ');
-                return;
-            }
-            await updateData({ game: { ...data.game, result } });
-            alert(`Result set to ${result}`);
-        }
-
-        async function resetServer() {
-            const data = await fetchData();
-            await updateData({
-                requests: {},
-                messages: [],
-                game: { state: 'betting', timeLeft: 30, onlinePlayers: Object.keys(data.users || {}).length, result: null, adminStarted: false, history: [], nextResult: null },
-                transactions: {}
-            });
-            alert('Server အသစ်စတင်ပြီး');
+            await updateData({ users: data.users, requests: data.requests, transactions: data.transactions });
         }
 
         async function submitAdminDeposit() {
@@ -281,71 +186,13 @@
                 alert('ဒီဖုန်းနံပတ်နဲ့ အကောင့်မရှိပါ');
                 return;
             }
-            const users = data.users || {};
-            users[userId].balance = (users[userId].balance || 0) + amount;
-            users[userId].transactions = users[userId].transactions || [];
-            users[userId].transactions.push({ type: 'deposit', amount, status: 'approved', timestamp: Date.now() });
-            users[userId].messages = users[userId].messages || [];
-            users[userId].messages.push({ from: 'admin', text: `ငွေသွင်း ${amount} MMK အတည်`, timestamp: Date.now() });
-            await updateData({ users });
+            data.users[userId].balance = (data.users[userId].balance || 0) + amount;
+            data.users[userId].transactions = data.users[userId].transactions || [];
+            data.users[userId].transactions.push({ type: 'deposit', amount, status: 'approved', timestamp: Date.now() });
+            await updateData({ users: data.users });
             document.getElementById('deposit-phone').value = '';
             document.getElementById('deposit-amount').value = '';
             alert(`User ${phone} သို့ ${amount} MMK သွင်းပြီး`);
-        }
-
-        async function submitAdminWithdraw(userId) {
-            const amount = parseInt(document.getElementById(`withdraw-${userId}`).value);
-            if (!amount || amount < 100) {
-                alert('ငွေပမာဏ မမှန်ပါ');
-                return;
-            }
-            const data = await fetchData();
-            const user = data.users[userId];
-            if (!user || user.balance < amount) {
-                alert('လက်ကျန်ငွေ မလုံလောက်ပါ');
-                return;
-            }
-            user.balance -= amount;
-            user.transactions = user.transactions || [];
-            user.transactions.push({ type: 'withdraw', amount, status: 'approved', timestamp: Date.now() });
-            user.messages.push({ from: 'admin', text: `ငွေထုတ် ${amount} MMK အတည်`, timestamp: Date.now() });
-            data.users[userId] = user;
-            await updateData({ users: data.users });
-            document.getElementById(`withdraw-${userId}`).value = '';
-            alert(`User ${maskPhoneNumber(user.phone)} မှ ${amount} MMK ထုတ်ပြီး`);
-        }
-
-        function openSupportChat(userId) {
-            selectedUserId = userId;
-            document.getElementById('support-chat').style.display = 'block';
-            document.getElementById('chat-user-id').innerHTML = userId.substr(0, 8) + '...';
-            updateAdminChatLog();
-        }
-
-        async function sendAdminSupportMessage() {
-            const message = document.getElementById('admin-support-input').value;
-            if (!message || !selectedUserId) return;
-            const data = await fetchData();
-            data.users[selectedUserId].messages = data.users[selectedUserId].messages || [];
-            data.users[selectedUserId].messages.push({ from: 'admin', text: message, timestamp: Date.now() });
-            await updateData(data);
-            document.getElementById('admin-support-input').value = '';
-            updateAdminChatLog();
-        }
-
-        function updateAdminChatLog() {
-            fetchData().then(data => {
-                const userMessages = data.users[selectedUserId]?.messages || [];
-                const chatLog = document.getElementById('admin-chat-log');
-                chatLog.innerHTML = '';
-                userMessages.forEach(msg => {
-                    const div = document.createElement('div');
-                    div.className = `chat-message ${msg.from === 'admin' ? 'admin' : ''}`;
-                    div.innerHTML = `${msg.text}`;
-                    chatLog.appendChild(div);
-                });
-                chatLog.scrollTop = chatLog.scrollHeight;
-            });
         }
 
         window.onload = () => {
