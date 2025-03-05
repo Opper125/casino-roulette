@@ -4,6 +4,7 @@ const urlsToCache = [
     '/index.html',
     '/login.html',
     '/roulette.html',
+    '/slots.html',
     '/admin.html',
     '/user-info.html'
 ];
