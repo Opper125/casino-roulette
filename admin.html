@@ -72,38 +72,39 @@
     </div>
 
     <script>
-        const BASE_URL = 'https://casino-opper.netlify.app';
+        const BASE_URL = 'https://casino-opper.netlify.app'; // Your Netlify URL
 
         async function fetchData() {
             try {
                 const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
+                if (!response.ok) throw new Error('Server ချိတ်ဆက်မှု မအောင်မြင်ပါ');
                 const data = await response.json();
                 localStorage.setItem('offlineData', JSON.stringify(data));
                 return data;
             } catch (e) {
+                console.error('Fetch failed:', e);
                 return JSON.parse(localStorage.getItem('offlineData') || '{}');
             }
         }
 
         async function updateData(updates) {
-            if (navigator.onLine) {
-                try {
-                    const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(updates)
-                    });
-                    const data = await response.json();
-                    localStorage.setItem('offlineData', JSON.stringify(data));
-                    return data;
-                } catch (e) {
-                    console.error('Update failed:', e);
-                }
+            try {
+                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+                if (!response.ok) throw new Error('Server သို့ ဒေတာပို့မှု မအောင်မြင်ပါ');
+                const data = await response.json();
+                localStorage.setItem('offlineData', JSON.stringify(data));
+                return data;
+            } catch (e) {
+                console.error('Update failed:', e);
+                let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
+                localData = { ...localData, ...updates };
+                localStorage.setItem('offlineData', JSON.stringify(localData));
+                return localData;
             }
-            let localData = JSON.parse(localStorage.getItem('offlineData') || '{}');
-            localData = { ...localData, ...updates };
-            localStorage.setItem('offlineData', JSON.stringify(localData));
-            return localData;
         }
 
         function maskPhoneNumber(phone) {
@@ -118,7 +119,7 @@
 
                 let onlineCount = 0;
                 Object.values(data.users || {}).forEach(user => {
-                    if (Date.now() - user.lastActive < 30000) onlineCount++;
+                    if (Date.now() - user.lastActive < 30000) onlineCount++; // Online if active in last 30s
                 });
                 document.getElementById('online-players').innerHTML = `Online Players: ${onlineCount}`;
 
@@ -139,7 +140,7 @@
                     if (requests[id].status !== 'pending') delete requests[id];
                 });
                 await updateData({ requests });
-            }, 1000);
+            }, 1000); // Poll every second
         }
 
         async function startGame() {
@@ -158,6 +159,7 @@
             const data = await fetchData();
             const req = data.requests[id];
             if (!req || !data.users[req.userId]) return;
+            data.transactions[req.userId] = data.transactions[req.userId] || [];
             data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'approved';
             req.status = 'approved';
             await updateData({ requests: data.requests, transactions: data.transactions });
@@ -168,6 +170,7 @@
             const req = data.requests[id];
             if (!req || !data.users[req.userId]) return;
             data.users[req.userId].balance += req.amount;
+            data.transactions[req.userId] = data.transactions[req.userId] || [];
             data.transactions[req.userId].find(tx => tx.timestamp === req.timestamp).status = 'rejected';
             req.status = 'rejected';
             await updateData({ users: data.users, requests: data.requests, transactions: data.transactions });
