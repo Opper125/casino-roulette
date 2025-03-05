@@ -35,12 +35,12 @@
         }
         #roulette-table {
             display: grid;
-            grid-template-rows: repeat(5, 1fr);
-            grid-template-columns: repeat(13, 1fr);
+            grid-template-rows: repeat(13, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 2px;
             margin: 20px auto;
             width: 90%;
-            background: #333;
+            background: #228b22;
             padding: 10px;
             border-radius: 10px;
             border: 2px solid #ffd700;
@@ -266,7 +266,11 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            animation: none;
+            animation: spinBall 2s linear infinite;
+        }
+        @keyframes spinBall {
+            0% { transform: translateX(-50%) rotate(0deg) translateY(-130px) rotate(0deg); }
+            100% { transform: translateX(-50%) rotate(-360deg) translateY(-130px) rotate(360deg); }
         }
         @keyframes spinBallSlow {
             0% { transform: translateX(-50%) rotate(0deg) translateY(-130px) rotate(0deg); }
@@ -348,26 +352,27 @@
             const table = document.getElementById('roulette-table');
             table.innerHTML = '';
             const numbers = [
-                "00", "0", "", "", "1 to 18", "EVEN", "Red", "Black", "ODD", "19 to 36", "", "", "",
-                "3", "2", "1", "1st 12", "", "", "", "", "", "2to1", "", "", "",
-                "6", "5", "4", "1st 12", "", "", "", "", "", "2to1", "", "", "",
-                "9", "8", "7", "1st 12", "", "", "", "", "", "2to1", "", "", "",
-                "12", "11", "10", "2nd 12", "", "", "", "", "", "2to1", "", "", "",
-                "15", "14", "13", "2nd 12", "", "", "", "", "", "2to1", "", "", "",
-                "18", "17", "16", "2nd 12", "", "", "", "", "", "2to1", "", "", "",
-                "21", "20", "19", "3rd 12", "", "", "", "", "", "2to1", "", "", "",
-                "24", "23", "22", "3rd 12", "", "", "", "", "", "2to1", "", "", "",
-                "27", "26", "25", "3rd 12", "", "", "", "", "", "2to1", "", "", "",
-                "30", "29", "28", "", "", "", "", "", "", "", "", "", "",
-                "33", "32", "31", "", "", "", "", "", "", "", "", "", "",
-                "36", "35", "34", "", "", "", "", "", "", "", "", "", ""
+                "1 to 18", "EVEN", "Red", "Black", "ODD", "19 to 36",
+                "0", "", "", "", "",
+                "1st 12", "1", "2", "3", "2to1",
+                "1st 12", "4", "5", "6", "2to1",
+                "1st 12", "7", "8", "9", "2to1",
+                "1st 12", "10", "11", "12", "2to1",
+                "2nd 12", "13", "14", "15", "2to1",
+                "2nd 12", "16", "17", "18", "2to1",
+                "2nd 12", "19", "20", "21", "2to1",
+                "2nd 12", "22", "23", "24", "2to1",
+                "3rd 12", "25", "26", "27", "2to1",
+                "3rd 12", "28", "29", "30", "2to1",
+                "3rd 12", "31", "32", "33", "2to1",
+                "3rd 12", "34", "35", "36", "2to1"
             ];
             numbers.forEach((num, index) => {
                 const slot = document.createElement('div');
                 slot.className = 'slot';
-                if (index % 13 <= 2 && num !== "") {
+                if (index % 5 >= 1 && index % 5 <= 3 && num !== "") {
                     slot.className += (["3", "9", "12", "18", "21", "27", "30", "36", "5", "14", "23", "32", "1", "7", "16", "19", "25", "34"].includes(num) ? ' red' : ' black');
-                } else if (["00", "0"].includes(num)) {
+                } else if (["0"].includes(num)) {
                     slot.className += ' green';
                 } else if (["1st 12", "2nd 12", "3rd 12", "1 to 18", "EVEN", "ODD", "19 to 36", "2to1"].includes(num)) {
                     slot.className += ' special-slot';
