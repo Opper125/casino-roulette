@@ -20,13 +20,11 @@
             border-radius: 15px; 
             box-shadow: 0 0 30px rgba(255, 215, 0, 0.6); 
             text-align: center; 
-            animation: fadeIn 0.5s ease-in-out; 
         }
         h1 { 
             text-shadow: 0 0 15px #ffd700; 
             font-size: 2em; 
             margin: 0; 
-            animation: glow 2s infinite alternate; 
         }
         table { 
             width: 100%; 
@@ -48,34 +46,34 @@
             cursor: pointer; 
             margin: 5px; 
             font-weight: bold; 
-            transition: transform 0.2s; 
         }
-        button:hover { transform: scale(1.05); }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes glow { from { text-shadow: 0 0 10px #ffd700; } to { text-shadow: 0 0 20px #ffd700; } }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>👤 ကစားသူ အချက်အလက်များ</h1>
         <button onclick="exportUserData()">📤 Export</button>
+        <button onclick="window.location.href='admin.html'">🏠 Back to Admin</button>
         <table>
             <thead>
-                <tr><th>ID</th><th>ဖုန်း</th><th>ငွေ (MMK)</th><th>Bet</th><th>အနိုင်</th><th>အသုံးပြုချိန်</th><th>Warnings</th><th>Ban</th></tr>
+                <tr><th>ID</th><th>ဖုန်း</th><th>ငွေ (MMK)</th><th>Bet</th><th>အနိုင်</th><th>ဖန်တီးချိန်</th><th>နောက်ဆုံး အသုံး</th><th>သတိပေးချက်</th><th>ပိတ်ပင်</th></tr>
             </thead>
             <tbody id="userList"></tbody>
         </table>
     </div>
 
-    <script src="sw.js"></script>
     <script>
         const BASE_URL = 'https://casino-opper.netlify.app';
 
         async function fetchData() {
-            const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
-            const data = await response.json();
-            localStorage.setItem('offlineData', JSON.stringify(data));
-            return data;
+            try {
+                const response = await fetch(`${BASE_URL}/.netlify/functions/data`, { cache: 'no-store' });
+                const data = await response.json();
+                localStorage.setItem('offlineData', JSON.stringify(data));
+                return data;
+            } catch (e) {
+                return JSON.parse(localStorage.getItem('offlineData') || '{}');
+            }
         }
 
         async function updateUserInfo() {
@@ -86,10 +84,20 @@
                 const users = data.users || {};
                 Object.entries(users).forEach(([id, user]) => {
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td>${id.substr(0, 8)}...</td><td>${maskPhoneNumber(user.phone)}</td><td>${user.balance || 0}</td><td>${user.totalBet || 0}</td><td>${user.totalWinnings || 0}</td><td>${new Date(user.lastActive).toLocaleString()}</td><td>${user.warnings || 0}</td><td>${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}</td>`;
+                    row.innerHTML = `
+                        <td>${id.substr(0, 8)}...</td>
+                        <td>${maskPhoneNumber(user.phone)}</td>
+                        <td>${user.balance || 0}</td>
+                        <td>${user.totalBet || 0}</td>
+                        <td>${user.totalWinnings || 0}</td>
+                        <td>${new Date(user.createdAt).toLocaleString()}</td>
+                        <td>${new Date(user.lastActive).toLocaleString()}</td>
+                        <td>${user.warnings || 0}</td>
+                        <td>${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}</td>
+                    `;
                     userList.appendChild(row);
                 });
-            }, 1000);
+            }, 1000); // Update every second
         }
 
         function maskPhoneNumber(phone) {
@@ -99,9 +107,9 @@
         async function exportUserData() {
             const data = await fetchData();
             const users = data.users || {};
-            let csv = 'ID,Phone,Balance,Total Bet,Total Winnings,Last Active,Warnings,Ban Until\n';
+            let csv = 'ID,Phone,Balance,Total Bet,Total Winnings,Created At,Last Active,Warnings,Ban Until\n';
             Object.entries(users).forEach(([id, user]) => {
-                csv += `${id},${maskPhoneNumber(user.phone)},${user.balance || 0},${user.totalBet || 0},${user.totalWinnings || 0},${new Date(user.lastActive).toLocaleString()},${user.warnings || 0},${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}\n`;
+                csv += `${id},${maskPhoneNumber(user.phone)},${user.balance || 0},${user.totalBet || 0},${user.totalWinnings || 0},${new Date(user.createdAt).toLocaleString()},${new Date(user.lastActive).toLocaleString()},${user.warnings || 0},${user.banUntil > Date.now() ? new Date(user.banUntil).toLocaleString() : 'N/A'}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
