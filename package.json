@@ -1,0 +1,11 @@
+{
+  "name": "casinoopper",
+  "version": "1.0.0",
+  "description": "Online Casino Roulette Game",
+  "scripts": {
+    "start": "echo 'Static HTML site with Functions'",
+    "build": "echo 'No build required'"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
